@@ -233,6 +233,16 @@ const Road = {
       suburb: ['gravel', 'gravel', 'ice', 'wet']
     };
 
+    /* 유형별 최소 개수를 채운 주머니를 만들어 섞는다.
+       테마 풀에서만 뽑으면 특정 위험 유형이 코스에 한 개도 없는 일이 생긴다(실측: oil 0개). */
+    const bag = [];
+    for (const t in H.quota) for (let i = 0; i < H.quota[t]; i++) bag.push(t);
+    while (bag.length < H.count) bag.push('wet');   // 여유분은 가장 순한 젖은 노면
+    for (let i = bag.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      const tmp = bag[i]; bag[i] = bag[j]; bag[j] = tmp;
+    }
+
     let guard = 0;
     while (starts.length < H.count && guard++ < H.count * 12) {
       const at = 70 + Math.floor(rnd() * (total - 140));
@@ -243,7 +253,16 @@ const Road = {
 
       const theme = this.zoneOf(at).theme;
       const pool = themePick[theme] || ['wet'];
-      let type = pool[Math.floor(rnd() * pool.length)];
+      // 남은 개수가 적은 유형부터 테마에 맞게 꺼낸다(테마와 무관한 유형은 어쩔 수 없이 그대로)
+      let idx = -1, fewest = Infinity;
+      for (let k = 0; k < bag.length; k++) {
+        const t = bag[k] === 'cobble' ? 'gravel' : bag[k];
+        if (pool.indexOf(t) < 0) continue;
+        let left = 0;
+        for (const x of bag) if ((x === 'cobble' ? 'gravel' : x) === t) left++;
+        if (left < fewest) { fewest = left; idx = k; }
+      }
+      let type = idx >= 0 ? bag.splice(idx, 1)[0] : bag.pop();
       if (type === 'cobble') type = 'gravel';
       const len = H.minLen + Math.floor(rnd() * (H.maxLen - H.minLen));
       const sideBias = rnd() < 0.45 ? (rnd() < 0.5 ? -1 : 1) : 0;   // 0 = 전체 차선

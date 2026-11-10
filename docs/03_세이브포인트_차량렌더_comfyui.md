@@ -23,7 +23,7 @@
 
 - GPU: **RTX 3070 Laptop 8GB**, driver 616.92, sm_86, `torch.cuda.is_available() = True`
 - C: 여유 ~170GB (7z/zip 해제 가능 공간 충분)
-- Blender (포터블,两处 X `C:\Users\dronc\AppData\Local\Programs\blender\`)
+- Blender (포터블, 두 곳 X `C:\Users\dronc\AppData\Local\Programs\blender\`)
   - `blender-5.2.3-windows-x64\blender.exe` (설치됨, 프로브에 사용)
   - `blender-5.2.4-windows-x64\blender.exe` ← **이걸로 통일** (SHA256 `bbd78f89…967c` 검증 OK, 5.2.4 LTS build 2026-11-10)
   - zip 원본: `%LOCALAPPDATA%\blender_dl\blender.zip`(5.2.3), `blender524.zip`(5.2.4) → 삭제 가능
@@ -37,7 +37,7 @@
   - ComfyUI 어텐션 플래그 확인됨: `--use-sage-attention`, `--use-flash-attention`, `--use-ck-attention`, `--fast <features>`
 - 벤치 스크립트(미실행): `C:\Users\dronc\AppData\Local\Temp\opencode\sage_bench.py`
   → 실행하면 sm_86 커널 존재 여부 + SDPA 대비 배속 확인. **미완료 항목.**
-- ComfyUI 모델 파일: **아직 아무것도下載 안 함.** Z-Image Turbo GGUF 트리 조회는 HF API 401 로 실패 → 저장소명/파일명 재확인 필요.
+- ComfyUI 모델 파일: **아직 아무것도 다운로드하지 않음.** Z-Image Turbo GGUF 트리 조회는 HF API 401 로 실패 → 저장소명/파일명 재확인 필요.
 
 ### Z-Image 주의사항 (중요)
 Z-Image 계열은 SageAttention/CK 같은 고속 어텐션에서 **검은 화면**이 나는known 문제가 있어,

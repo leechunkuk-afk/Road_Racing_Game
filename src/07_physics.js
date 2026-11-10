@@ -9,6 +9,12 @@ const Physics = {
   stats: null,
   mode: 'free',
 
+  /* 차량 절반폭을 playerX 단위(도로 절반폭의 배수)로 환산. 렌더·충돌·점프 판정이 같은 실측을 쓴다 */
+  carHalfX() {
+    const c = CONFIG.car;
+    return (c.widthM * CONFIG.unitPerMeter) / (2 * CONFIG.road.width) * c.hitGrace;
+  },
+
   setup() {
     const maxSpeed = CONFIG.road.segLen / CONFIG.road.rumbleLen / (1 / 60);
     const p = CONFIG.physics;
@@ -175,7 +181,7 @@ const Physics = {
     if (p.rampCool > 0) p.rampCool -= dt;
     if (!p.airborne && p.rampCool <= 0 && seg.ramp && speedPct >= CONFIG.hazard.rampMinSpeed) {
       const half = (PROP_SIZE.ramp[0] / CONFIG.road.width) * 0.5;
-      if (utils.overlap(p.x, 0.30, seg.rampOffset, half + 0.06, 0.7)) {
+      if (utils.overlap(p.x, this.carHalfX(), seg.rampOffset, half, 0.85)) {
         p.airborne = true;
         p.vy = CONFIG.hazard.launchBase + CONFIG.hazard.launchMore * speedPct;
         p.launchPower = speedPct;
@@ -183,18 +189,20 @@ const Physics = {
         p.pitch = -0.14;
         this.cam.shake = Math.max(this.cam.shake, 2.5);
         Sound.sfx('jump');
-        Toast.show('점프 ' + Math.round(p.vy * p.vy / 39200) + 'm', 1200);
+        // 정점 높이(m): 월드 스케일(100유닛 = 1m) 기준으로 표시
+        const apexM = p.vy * p.vy / (2 * CONFIG.physics.gravity * CONFIG.unitPerMeter);
+        Toast.show('점프 ' + Math.round(apexM) + 'm', 1200);
       }
     }
 
     /* 점프(air) */
     if (p.airborne) {
-      p.vy -= 9.81 * 40 * dt;
+      p.vy -= CONFIG.physics.gravity * dt;
       p.y += p.vy * dt;
       p.pitch = utils.lerp(p.pitch, -0.10, dt * 3);
       if (p.y <= 0) {
         p.y = 0; p.airborne = false;
-        const hard = Math.abs(p.vy) / 900;
+        const hard = Math.abs(p.vy) / CONFIG.physics.landingHard;
         this.cam.shake = Math.min(CONFIG.fx.shakeMax, 3 + hard * 8);
         p.pitch = 0.06;
         if (hard > 0.5) { this.damageBody(hard * 6, 'landing'); Sound.sfx('crash2'); }
@@ -244,7 +252,7 @@ const Physics = {
     for (const sg of near) {
       for (const sp of sg.sprites) {
         if (!sp.solid) continue;
-        if (!utils.overlap(p.x, 0.34, sp.offset, (sp.w / CONFIG.road.width) * 0.5, 0.6)) continue;
+        if (!utils.overlap(p.x, this.carHalfX(), sp.offset, (sp.w / CONFIG.road.width) * 0.5, 0.75)) continue;
         this.crash(sp, speedPct);
         return;
       }
@@ -274,6 +282,9 @@ const Physics = {
     this.cam.shake = CONFIG.fx.shakeMax * utils.clamp(0.45 + speedPct, 0.45, 1);
     this.damageBody((3 + speedPct * 12) * info.dmg, 'impact');
     Sound.sfx(speedPct > 0.5 ? 'crash2' : 'crash1');
+    // 쾅 소리 위에 유리/파편 소리를 겹쳐 무게감을 더한다(무거운 물체·고속 충돌일 때만)
+    if (speedPct > 0.55) Sound.sfx('crash_glass');
+    if (speedPct > 0.7 && (sp.kind === 'barrier' || sp.kind === 'bldg' || sp.kind === 'streetlight')) Sound.sfx('crash_break');
     FX.debris(sp.offset, sp.kind);
     Toast.show('충돌! ' + info.ko);
   },

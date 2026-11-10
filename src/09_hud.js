@@ -106,7 +106,7 @@ const HUD = {
     };
     let label = null, col = '#8fa8c4';
     if (p.airborne) {
-      label = '공중 ' + Math.max(0, Math.round(p.y / 50)) + ' m';
+      label = '공중 ' + Math.max(0, Math.round(p.y / CONFIG.unitPerMeter)) + ' m';
       col = '#49d9ff';
     } else if (p.surface !== 'asphalt') {
       const it = SURF[p.surface] || [p.surface, '#ffc46b'];

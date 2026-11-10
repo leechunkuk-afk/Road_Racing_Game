@@ -34,6 +34,7 @@ const Game = {
       (sm) => {
         UI.bootProgress(1, '준비 완료');
         UI.bootDone(sm);
+        Sound.rescan();          // 사운드 참조는 에셋 로드 이후에 확정한다
         this.toMenu();
         if (sm.ok === 0) Toast.show('실물 에셋 없음: 절차적 그래픽/합성 사운드로 실행합니다', 3200);
       }
@@ -50,6 +51,8 @@ const Game = {
     this.mode = 'menu';
     this.clock = 0;
     UI.show('menuLayer');
+    Sound.stopEngine();          // 주행 중 메뉴로 오면 엔진 루프를 세운다
+    Sound.skid(0);
     Sound.music.play('mus_menu');
   },
   startFree() {
@@ -80,6 +83,8 @@ const Game = {
   wreck() {
     this.mode = 'wreck';
     Physics.player.speed = 0;
+    Sound.stopEngine();
+    Sound.skid(0);
     Toast.show('차량이 폐차되었습니다 - 메뉴로 돌아갑니다', 2600);
     setTimeout(() => this.toMenu(), 1800);
   },

@@ -22,9 +22,22 @@ const CONFIG = {
     rumbleLen: 3,          // 세그먼트 3개 = 1 루머블 패턴
     lanes: 3,
     laneMarkerW: 0.02,     // 절반 폭 대비 차선 마커 두께
-    railLimit: 1.22,       // 가드레일 내측 한계(playerX 단위 = 절반 폭 배수)
+    railLimit: 1.11,       // 가드레일 내측 한계(playerX 단위) = 노면 끝(1.0) + 차량 절반폭(0.11)
     railHeight: 115        // 가드레일 높이(월드 유닛)
   },
+
+  /* 플레이어 차량 실측(월드 유닛 100 = 1m). 렌더 크기·충돌 판정·HUD 가 이 값을 함께 쓴다.
+     drawFrac: 노면 접지선에서 도로 전체 폭이 스크린 전체 폭과 1:1 이 되는 투영 보정을 근거로
+               계산한 화면 폭 비율(히어로서트 보정 heroScale 반영) */
+  car: {
+    widthM: 1.95, lengthM: 4.30, heightM: 1.22,
+    heroScale: 1.25,       // 화면 체감 보정(접지선 투영 기준 실측 크기에서 살짝 크게)
+    drawFrac: 0.152,       // 런타임 계산값의 기준 결과(1680x945, cy=0.80H 에서의 차폭/스크린 폭)
+    hitGrace: 0.90,        // 히트박스 관용 계수(실차폭보다 살짝 좁게 봐준다)
+    halfX: 0.108           // playerX 단위 절반폭 = widthM*100 / (2 * road.width)
+  },
+
+  unitPerMeter: 100,       // 월드 유닛 → 미터 환산(속도·소품·차량 크기 공통 기준)
 
   physics: {
     maxSpeed: 0,           // setup() 에서 segLen/rumbleLen/(1/60) 로 계산
@@ -33,8 +46,10 @@ const CONFIG = {
     centrifugal: 0.34,     // 커브에서 바깥으로 밀리는 강도
     steerRate: 2.3,        // 초당 조향량(속도 100% 기준)
     gripAsphalt: 1.0,
-    kmhFactor: 0.036,      // 유닛/초 -> km/h
-    dragShifts: 6
+    kmhFactor: 0.036,      // 유닛/초 -> km/h  (즉 100유닛 = 1m)
+    dragShifts: 6,
+    gravity: 392.4,        // 유닛/초^2 (9.81 * 40). 100유닛=1m 기준이면 0.4g 로 아케이드 공중감을 준다
+    landingHard: 900       // 접지 충격 환산 기준(이 속도/component 이상이면 착지 피해)
   },
 
   lighting: {
@@ -60,7 +75,8 @@ const CONFIG = {
     wet:    { ko: '젖은 노면', grip: 'wet' }
   },
   hazard: {
-    count: 14,          // 코스당 위험 구간 개수
+    count: 22,          // 코스당 위험 구간 개수
+    quota: { oil: 4, ice: 5, gravel: 6, wet: 7 },  // 유형별 최소 개수(코스 전체에서 한 유형도 빠지지 않게)
     minLen: 12, maxLen: 40,
     rampCount: 6,       // 점프대 개수
     rampMinSpeed: 0.28, // 발동 최소 속도(최고속 대비)
@@ -111,6 +127,8 @@ const CONFIG = {
       { id: 'eng_start', type: 'audio', url: 'sfx/engine_start.wav' },
       { id: 'crash1', type: 'audio', url: 'sfx/crash_bfh1_hit_02.ogg' },
       { id: 'crash2', type: 'audio', url: 'sfx/crash_bfh1_metal_falling_01.ogg' },
+      { id: 'crash_glass', type: 'audio', url: 'sfx/crash_bfh1_glass_breaking_03.ogg' },
+      { id: 'crash_break', type: 'audio', url: 'sfx/crash_bfh1_breaking_01.ogg' },
       { id: 'boost_s', type: 'audio', url: 'sfx/boost-start.ogg' },
       { id: 'boost_l', type: 'audio', url: 'sfx/boost-loop.ogg' },
       { id: 'boost_e', type: 'audio', url: 'sfx/boost-end.ogg' },
@@ -159,17 +177,18 @@ const ROAD = {
   HILL:  { NONE: 0, LOW: 20, MEDIUM: 40, HIGH: 60 }
 };
 
-/* 소품 종류별 실제 크기(월드 유닛: [폭, 높이], 도로 절반폭 900 기준) */
+/* 소품 종류별 크기(월드 유닛: [폭, 높이], 도로 절반폭 900 기준 / 100유닛 = 1m).
+   아틀라스를 쓰는 항목은 원본 프레임 비율에 맞춰 상자를 두었다(비율 보존 드로잉). */
 const PROP_SIZE = {
   streetlight: [150,  950],
-  tree:        [420,  540],
+  tree:        [480,  480],   // Kenney tree_small/large 는 정사각 프레임
   bldg:        [1500, 2600],
   bldg_far:    [2100, 3900],
-  cone:        [70,   85],
-  barrier:     [430,  120],
-  barrel:      [115,  130],
-  tirestack:   [140,  150],
-  rock:        [220,  180],
+  cone:        [70,   70],    // cone_straight 45x44
+  barrier:     [430,  127],   // barrier_red_race 210x62
+  barrel:      [100,  100],   // barrel_red 56x56
+  tirestack:   [140,  140],   // tires_red 56x56
+  rock:        [220,  180],   // rock1~3 약 1.2:1
   lamphead:    [110,  110],
   ramp:        [760,  210]
 };

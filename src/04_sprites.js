@@ -56,7 +56,12 @@ const Sprites = {
   },
 
   atlasDraw(ctx, fr, cx, baseY, w, h) {
-    ctx.drawImage(fr.img, fr.x, fr.y, fr.w, fr.h, Math.round(cx - w / 2), Math.round(baseY - h), Math.round(w), Math.round(h));
+    // 원본 프레임 비율을 보존한다. (w,h) 는 외접 상자가 되고 접지선은 baseY 에 고정된다.
+    // (비율을 무시하고 늘이면 Kenney 아틀라스 그림이 납작/늘어져 보인다)
+    const ar = fr.w / fr.h;
+    let dw = w, dh = w / ar;
+    if (dh > h) { dh = h; dw = h * ar; }
+    ctx.drawImage(fr.img, fr.x, fr.y, fr.w, fr.h, Math.round(cx - dw / 2), Math.round(baseY - dh), Math.round(dw), Math.round(dh));
   },
 
   /* kind: streetlight|tree|bldg|bldg_far|cone|barrier|barrel|tirestack|rock */

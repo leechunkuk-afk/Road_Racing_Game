@@ -12,11 +12,29 @@ const Sound = {
   noiseBuf: null,
 
   init() {
-    this.ext = { eng1: Assets.audio('eng1'), eng2: Assets.audio('eng2'), eng3: Assets.audio('eng3') };
-    this.sfxExt = {
-      crash1: Assets.audio('crash1'), crash2: Assets.audio('crash2'),
-      boost_s: Assets.audio('boost_s'), boost_l: Assets.audio('boost_l'), boost_e: Assets.audio('boost_e')
-    };
+    // 에셋은 Sound.init 이후에 로드되므로 이 시점에는 항상 비워 두고, 쓸 때 참조한다.
+    // ( Assets.load 가 끝난 뒤 main 에서 Sound.rescan() 을 호출해 확정한다 )
+    this.ext = { eng1: null, eng2: null, eng3: null };
+    this.sfxExt = {};
+  },
+
+  // 자산 로드 완료 후 호출(이미 재생 중인 요소의 참조도 갱신)
+  rescan() {
+    this.ext.eng1 = Assets.audio('eng1');
+    this.ext.eng2 = Assets.audio('eng2');
+    this.ext.eng3 = Assets.audio('eng3');
+    return this;
+  },
+
+  // 지연 참조: 캐시가 비어 있으면(로드 순서와 무관하게) 쓰는 시점에 찾는다
+  engEls() {
+    if (!this.ext.eng1) this.rescan();
+    return this.ext;
+  },
+
+  sfxEl(name) {
+    if (this.sfxExt[name] === undefined) this.sfxExt[name] = Assets.audio(name);
+    return this.sfxExt[name] || Assets.audio(name);
   },
 
   // 사용자 제스처 이후에 AudioContext 를 만든다(자동재생 정책)
@@ -57,13 +75,19 @@ const Sound = {
     this.stopEngine();
     // 외부 루프(eng1/2/3)가 있으면 요소만 시동(볼륨/피치로 rpm 표현)
     this.engExt = null;
-    const a = this.ext.eng2 || this.ext.eng1 || this.ext.eng3;
+    const E = this.engEls();
+    const a = E.eng2 || E.eng1 || E.eng3;
+    // 시동음(external)이 있으면 한 번 틀고, 곧바로 rpm 루프로 넘어간다
+    const st = this.sfxEl('eng_start');
+    if (st) {
+      try { st.currentTime = 0; st.volume = CONFIG.audio.sfx * 0.55; const p0 = st.play(); if (p0 && p0.catch) p0.catch(() => {}); } catch (e) {}
+    }
     if (a) {
       try {
         a.loop = true; a.volume = 0; a.currentTime = 0;
         const pr = a.play();
         if (pr && pr.catch) pr.catch(() => {});
-        this.engExt = { el: a, which: a === this.ext.eng2 ? 2 : (a === this.ext.eng1 ? 1 : 3), cur: 0 };
+        this.engExt = { el: a, which: a === E.eng2 ? 2 : (a === E.eng1 ? 1 : 3), cur: 0 };
       } catch (e) { this.engExt = null; }
     }
     if (!this.engExt) this.buildEngineSynth();
@@ -97,22 +121,26 @@ const Sound = {
       this.eng = null;
     }
     if (this.engExt) { try { this.engExt.el.pause(); } catch (e) {} this.engExt = null; }
+    const st = this.sfxExt && this.sfxExt.eng_start;
+    if (st) { try { st.pause(); st.volume = 0; } catch (e) {} }
   },
 
   /* rpm: 0..1(클러치/기어 반영값), load: 0..1 가속 pedal, on: 시동 여부 */
   engine(rpm, load, boost) {
-    if (!this.eng) return;
+    if (!this.eng && !this.engExt) return;   // 외부 루프(engExt)만 쓰는 경우에도 진행되어야 한다
     const target = CONFIG.audio.engine * (0.30 + 0.70 * rpm) * (boost ? 1.25 : 1);
     if (this.engExt) {
-      const e = this.engExt;
-      // rpm 구간별로 다른 외부 루프로 갈아타기(단순 페이드)
-      const want = rpm < 0.34 ? (this.ext.eng1 || this.ext.eng2 || this.ext.eng3)
-                 : rpm < 0.72 ? (this.ext.eng2 || this.ext.eng1 || this.ext.eng3)
-                              : (this.ext.eng3 || this.ext.eng2 || this.ext.eng1);
+      const e = this.engExt, E = this.engEls();
+      // rpm 대역별 외부 루프 갈아타기(1:저/2:중/3:고). 경계 히스테리스로 딸깍을 막는다
+      let band = e.band || 2;
+      if (band === 1) { if (rpm > 0.40) band = 2; }
+      else if (band === 2) { if (rpm < 0.28) band = 1; else if (rpm > 0.78) band = 3; }
+      else if (rpm < 0.66) band = 2;
+      const want = (band === 1 ? E.eng1 : band === 2 ? E.eng2 : E.eng3) || E.eng2 || E.eng1 || E.eng3;
       if (want && want !== e.el) {
-        try { want.loop = true; want.currentTime = 0; want.volume = 0; const pr = want.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (err) {}
+        try { want.loop = true; want.volume = 0; const pr = want.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (err) {}
         try { e.el.volume = 0; e.el.pause(); } catch (err) {}
-        e.el = want;
+        e.el = want; e.band = band; e.started = true;
       }
       e.cur = utils.lerp(e.cur, utils.clamp(target, 0, 1), 0.15);
       try { e.el.volume = e.cur * 0.9; e.el.playbackRate = utils.clamp(0.75 + rpm * 0.9, 0.6, 1.9); } catch (err) {}
@@ -149,7 +177,7 @@ const Sound = {
 
   /* --------------------------------------------------------------- sfx -- */
   sfx(name) {
-    const el = this.sfxExt && this.sfxExt[name];
+    const el = this.sfxEl(name);
     if (el) { try { el.currentTime = 0; el.volume = CONFIG.audio.sfx; const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} return; }
     if (!this.ensure()) return;
     const c = this.ctx, t = c.currentTime;

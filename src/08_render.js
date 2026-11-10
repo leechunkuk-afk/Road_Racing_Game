@@ -500,13 +500,22 @@ const Render = {
   },
 
   /* --------------------------------------------------- 플레이어 차량 -- */
+  /* 지면(worldY = 0)이 스크린 rowY 에 닿아 보이는 깊이에서의 "1m 당 픽셀" 값.
+     소품(drawSprite)과 같은 투영식을 쓰므로 차량과 사물의 크기가 서로 맞는다. */
+  pxPerMeterAt(rowY) {
+    const scale = ((rowY / this.H) - 0.5) * 2 / CONFIG.camera.height;
+    return scale * CONFIG.unitPerMeter * this.W / 2;
+  },
+
   drawPlayer() {
     const g = this.ctx, W = this.W, H = this.H;
     const p = Physics.player;
     const chase = Save.data.cam !== 'hood';
     const cx = W / 2 + p.yaw * 90 + (p.slip * p.steer * 40);
     const cy = H * (chase ? 0.80 : 0.86);
-    const w = W * (chase ? 0.30 : 0.34), h = H * (chase ? 0.30 : 0.34);
+    // 차폭은 실측(1.95m)을 접지선 투영에 맞춰 계산한다(소품과 동일한 척도)
+    const w = this.pxPerMeterAt(cy) * CONFIG.car.widthM * CONFIG.car.heroScale;
+    const h = w * 0.72;
     const air = p.y > 0 ? utils.clamp(p.y / 900, 0, 1) : 0;
     const lampLit = utils.clamp(0.55 + CONFIG.lighting.lampBoost * Road.lampLight(p.z), 0.3, 1.3);
     const dmg = 1 - Physics.stats.body / 100;
@@ -514,7 +523,7 @@ const Render = {
       // 보닛 뷰: 도로 + 글로시 후드 일부
       g.save();
       g.globalAlpha = 0.94;
-      Sprites.carHood(g, cx, H + h * 0.16, w * 2.4, h * 1.35, {
+      Sprites.carHood(g, cx, H + h * 0.16, w * 3.0, h * 2.4, {
         steer: p.steer, drift: p.slip, color: Game.carColor,
         dmg: dmg, light: lampLit
       });

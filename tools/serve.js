@@ -12,8 +12,39 @@ const MIME = {
   '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.xml': 'text/xml; charset=utf-8'
 };
 
+/* 프레임 저장을 위한 개발용 엔드포인트: POST /__shot?name=이름.png  body = data:image/png;base64,...
+   화면 캡처가 어려운 환경(탭 미표시)에서도 게임 캔버스를 파일로 남길 수 있다. 저장 위치: docs/refs/ */
+const REFS = path.join(ROOT, 'docs', 'refs');
+function saveShot(req, res, name) {
+  if (!/^[A-Za-z0-9_.-]+\.(png|jpg|jpeg)$/.test(name)) { res.writeHead(400); res.end('bad name'); return; }
+  const chunks = [];
+  let size = 0;
+  req.on('data', (c) => {
+    size += c.length;
+    if (size > 12 * 1024 * 1024) { res.writeHead(413); res.end('too big'); req.destroy(); return; }
+    chunks.push(c);
+  });
+  req.on('end', () => {
+    const body = Buffer.concat(chunks).toString('utf8');
+    const m = body.match(/base64,(.*)$/s);
+    if (!m) { res.writeHead(400); res.end('no base64'); return; }
+    let buf;
+    try { buf = Buffer.from(m[1].replace(/\s/g, ''), 'base64'); } catch (e) { res.writeHead(400); res.end('bad base64'); return; }
+    fs.mkdirSync(REFS, { recursive: true });
+    const out = path.join(REFS, name);
+    fs.writeFileSync(out, buf);
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('saved ' + path.relative(ROOT, out) + ' ' + buf.length + 'B');
+  });
+}
+
 http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
+  if (req.method === 'POST' && p === '/__shot') {
+    const q = new URLSearchParams(req.url.split('?')[1] || '');
+    saveShot(req, res, q.get('name') || 'shot.png');
+    return;
+  }
   if (p === '/' || p === '') p = '/index.html';
   const file = path.join(ROOT, p);
   if (!file.startsWith(ROOT)) { res.writeHead(403); res.end('forbidden'); return; }
