@@ -193,6 +193,195 @@ const Sprites = {
     }
   },
 
+  /* ================= Blender 렌더 차량 스프라이트 =================
+     프레임 규약(docs/05 5절): 렌더 yaw 0 = 정후방, + = 차 코가 화면 왼쪽.
+     게임의 player.yaw 는 우핸들이 + (코가 오른쪽) 이므로 부호가 반대다.
+     → 프레임은 |yaw| 로 고르고, 게임 yaw 가 양수일 때 좌우 반전해 그린다.
+     opt: {palette, ppm, yaw(rad), brake, boost, dmg, air, light, scale} */
+  _carPalOk: {},
+  _filterOK: null,
+
+  carFrameNo(i) { return (i < 10 ? '0' : '') + i; },
+
+  /* 한 색의 프레임 16장이 모두 로드됐는지 (한 장이라도 없으면 절차적 차량을 쓴다) */
+  carSpritesReady(pal) {
+    if (this._carPalOk[pal] === undefined) {
+      const S = CONFIG.car.sprites;
+      let ok = true;
+      for (let i = 0; i < S.yaws.length; i++) {
+        if (!Assets.has('car_' + pal + '_' + this.carFrameNo(i))) { ok = false; break; }
+      }
+      this._carPalOk[pal] = ok;
+    }
+    return this._carPalOk[pal];
+  },
+
+  /* yaw(도) 에 가장 가까운 프레임 인덱스 */
+  carFrameIdx(yawDeg) {
+    const Y = CONFIG.car.sprites.yaws;
+    const a = utils.clamp(Math.abs(yawDeg), 0, 180);
+    let best = 0, bd = 1e9;
+    for (let i = 0; i < Y.length; i++) {
+      const d = Math.abs(Y[i] - a);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  },
+
+  /* 차체 좌표(m) -> 프레임 픽셀 [열, 위에서 기준 행].
+     car_render.py 의 직교 카메라와 같은 수식(카메라 배치 + 직교 투영) 을 쓴다. */
+  carProj(yawDeg, pt) {
+    const S = CONFIG.car.sprites;
+    const a = yawDeg * Math.PI / 180, pit = S.pitchDeg * Math.PI / 180, d = S.camDist;
+    const px = -Math.cos(a) * d, py = Math.sin(a) * d, pz = S.targetZ + d * Math.tan(pit);
+    let fx = -px, fy = -py, fz = S.targetZ - pz;              // 시선 방향(원점 → 타깃)
+    const fl = Math.sqrt(fx * fx + fy * fy + fz * fz);
+    fx /= fl; fy /= fl; fz /= fl;
+    const zx = -fx, zy = -fy, zz = -fz;                       // 카메라 +Z
+    let ux = -zz * zx, uy = -zz * zy, uz = 1 - zz * zz;       // +Y = 세계 +Z 에 최대한 가깝게
+    const ul = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
+    ux /= ul; uy /= ul; uz /= ul;
+    const xx = uy * zz - uz * zy, xy = uz * zx - ux * zz, xz = ux * zy - uy * zx;  // +X = Y × Z
+    const qx = pt[0] - px, qy = pt[1] - py, qz2 = pt[2] - pz;
+    const cxp = xx * qx + xy * qy + xz * qz2, cyp = ux * qx + uy * qy + uz * qz2;
+    return [S.framePx * 0.5 + cxp * S.pxPerM, S.framePx * 0.5 - cyp * S.pxPerM];
+  },
+
+  carSprite(ctx, cx, groundY, opt) {
+    const o = opt || {};
+    const S = CONFIG.car.sprites;
+    const pal = o.palette || S.paletteDefault;
+    const img = Assets.img('car_' + pal + '_' + this.carFrameNo(this.carFrameIdx((o.yaw || 0) * 180 / Math.PI)));
+    if (!img) return false;
+
+    const ppm = o.ppm || S.pxPerM;          // 화면 1m 당 픽셀(접지선 기준)
+    const M = ppm;                          // 미터 → 화면 픽셀 변환
+    const yawDeg = (o.yaw || 0) * 180 / Math.PI;
+    const idx = this.carFrameIdx(yawDeg), frameYaw = S.yaws[idx];
+    const s = (ppm / S.pxPerM) * (o.scale || 1);
+    const fw = S.framePx * s, ax = S.anchorX * s, ay = S.anchorY * s;
+    const flip = yawDeg > 0;                // 게임 +yaw(우핸들) → 프레임을 좌우 반전
+    const air = utils.clamp(o.air || 0, 0, 1);
+    const dmg = utils.clamp(o.dmg || 0, 0, 1);
+    const lit = utils.clamp(o.light === undefined ? 1 : o.light, 0.3, 1.3);
+    const rad = frameYaw * Math.PI / 180;
+    const halfW = (CONFIG.car.lengthM * 0.5 * Math.abs(Math.sin(rad)) +
+                   CONFIG.car.widthM * 0.5 * Math.abs(Math.cos(rad))) * M;   // 이 yaw 의 화면 절반폭
+
+    /* 오버레이 앵커(프레임 픽셀) -> 원점(접지선 앵커) 기준 좌표 */
+    const fp = (name) => {
+      const p = this.carProj(frameYaw, S.fx[name]);
+      return { x: (p[0] - S.anchorX) * s, y: (p[1] - S.anchorY) * s };
+    };
+    /* 차 뒤쪽 방향 단위벡터(니트로 불꽃이 뻗는 방향) */
+    const c0 = fp('center'), r0 = fp('rear');
+    let ox = r0.x - c0.x, oy = r0.y - c0.y;
+    const ol = Math.sqrt(ox * ox + oy * oy) || 1; ox /= ol; oy /= ol;
+
+    ctx.save();
+    ctx.translate(cx, groundY);
+
+    /* 접지 그림자(부드러운 타원). 공중에선 넓고 옅어진다. */
+    const sg = ctx.createRadialGradient(0, 0, 1, 0, 0, halfW * (1 + air * 0.18));
+    sg.addColorStop(0, 'rgba(0,0,0,' + (0.52 - air * 0.24).toFixed(3) + ')');
+    sg.addColorStop(0.55, 'rgba(0,0,0,' + (0.24 - air * 0.12).toFixed(3) + ')');
+    sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, halfW * (1 + air * 0.18), M * (0.115 + air * 0.05), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    if (flip) ctx.scale(-1, 1);
+
+    /* 가로등 밝기에 반응해 살짝 명암만 조정한다(이미지 자체는 렌더에서 이미 조명됨). */
+    if (this.filterOK(ctx)) ctx.filter = 'brightness(' + utils.clamp(0.74 + lit * 0.30, 0.7, 1.14).toFixed(3) + ')';
+    ctx.drawImage(img, -ax, -ay, fw, fw);
+    if (this._filterOK) ctx.filter = 'none';
+
+    /* 손상: 후면 스크래치/찍힘(스프라이트는 클리핑이 안 되니 국소 오버레이로만) */
+    if (dmg > 0.12) {
+      const rnd = utils.mulberry32(4242);
+      const q = fp('tailC');
+      ctx.globalAlpha = utils.clamp(dmg * 0.5, 0, 0.5);
+      for (let i = 0; i < 3 + Math.floor(dmg * 6); i++) {
+        const x0 = q.x + (rnd() - 0.5) * M * 1.5, y0 = q.y + (rnd() - 0.5) * M * 0.5;
+        const rr = M * (0.05 + rnd() * 0.09) * (0.7 + dmg);
+        const dg = ctx.createRadialGradient(x0, y0, 1, x0, y0, rr);
+        dg.addColorStop(0, 'rgba(8,10,14,0.75)'); dg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = dg;
+        ctx.beginPath(); ctx.ellipse(x0, y0, rr * 1.5, rr, rnd() * 3, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (dmg > 0.6) {                       // 한쪽 테일램프 파손
+        const t = fp('tailL');
+        ctx.fillStyle = 'rgba(7,9,13,0.80)';
+        ctx.beginPath(); ctx.ellipse(t.x, t.y, M * 0.16, M * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    /* 브레이크 등(테일램프 위치에 추가 발광) */
+    const hot = !!o.brake;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const k of ['tailL', 'tailR', 'tailC']) {
+      const q = fp(k), rr = M * (hot ? 0.34 : 0.20);
+      const bg = ctx.createRadialGradient(q.x, q.y, 1, q.x, q.y, rr);
+      bg.addColorStop(0, 'rgba(255,70,84,' + (hot ? 0.72 : 0.24).toFixed(3) + ')');
+      bg.addColorStop(0.45, 'rgba(255,44,64,' + (hot ? 0.28 : 0.09).toFixed(3) + ')');
+      bg.addColorStop(1, 'rgba(255,30,60,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.72, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    /* 전조 등(DRL)은 차가 카메라를 향한 각도에서만 보인다 */
+    if (frameYaw > 75) {
+      for (const k of ['drlL', 'drlR']) {
+        const q = fp(k), rr = M * 0.26;
+        const wg = ctx.createRadialGradient(q.x, q.y, 1, q.x, q.y, rr);
+        wg.addColorStop(0, 'rgba(226,240,255,0.55)');
+        wg.addColorStop(0.5, 'rgba(170,205,255,0.16)');
+        wg.addColorStop(1, 'rgba(150,190,255,0)');
+        ctx.fillStyle = wg;
+        ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.68, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    /* 니트로 불꽃(배기구에서 차 뒤쪽 방향으로) */
+    if (o.boost) {
+      for (const k of ['exhL', 'exhR']) {
+        const q = fp(k);
+        const len = M * (0.34 + Math.random() * 0.26);
+        const wid = M * 0.075;
+        const nx = -oy, ny = ox;                    // out 에 수직
+        const tx = q.x + ox * len, ty = q.y + oy * len;
+        const fg = ctx.createLinearGradient(q.x, q.y, tx, ty);
+        fg.addColorStop(0, 'rgba(255,248,220,0.92)');
+        fg.addColorStop(0.35, 'rgba(255,150,60,0.66)');
+        fg.addColorStop(1, 'rgba(120,60,255,0)');
+        ctx.fillStyle = fg;
+        ctx.beginPath();
+        ctx.moveTo(q.x + nx * wid, q.y + ny * wid);
+        ctx.lineTo(q.x - nx * wid, q.y - ny * wid);
+        ctx.lineTo(tx, ty);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+    ctx.restore();
+    return true;
+  },
+
+  /* ctx.filter 지원 여부(없으면 명암 조정만 건너뛴다) */
+  filterOK(ctx) {
+    if (this._filterOK === null) {
+      try {
+        ctx.filter = 'brightness(1.05)';
+        this._filterOK = ctx.filter === 'brightness(1.05)';
+        ctx.filter = 'none';
+      } catch (e) { this._filterOK = false; }
+    }
+    return this._filterOK;
+  },
+
   /* player/AI 차량 (후방 3/4 뷰).
      opt: {color, steer, yaw, drift, brake, boost, dmg, air, light, wing} */
   carRear(ctx, cx, baseY, w, h, opt) {

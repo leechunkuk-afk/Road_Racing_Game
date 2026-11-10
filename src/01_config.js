@@ -31,10 +31,40 @@ const CONFIG = {
                계산한 화면 폭 비율(히어로서트 보정 heroScale 반영) */
   car: {
     widthM: 1.95, lengthM: 4.30, heightM: 1.22,
-    heroScale: 1.25,       // 화면 체감 보정(접지선 투영 기준 실측 크기에서 살짝 크게)
-    drawFrac: 0.152,       // 런타임 계산값의 기준 결과(1680x945, cy=0.80H 에서의 차폭/스크린 폭)
+    heroScale: 1.00,       // 스프라이트는 실측 크기(접지선 80px/m)로 그대로 그린다
+    drawFrac: 0.123,       // 런타임 계산값의 기준 결과(1680x945, cy=0.80H 에서의 차폭/스크린 폭)
     hitGrace: 0.90,        // 히트박스 관용 계수(실차폭보다 살짝 좁게 봐준다)
-    halfX: 0.108           // playerX 단위 절반폭 = widthM*100 / (2 * road.width)
+    halfX: 0.108,          // playerX 단위 절반폭 = widthM*100 / (2 * road.width)
+
+    /* ---- Blender yaw 스프라이트 (tools/car_model/car_render.py 생성) ----
+       프레임은 384px 정방 PNG(straight alpha). 직교 렌더라 pxPerM 고정이다.
+       앵커는 bbox 아래변이 아니라 타이어 접지선(ground_y) 이다.
+       yaw 규약: 렌더 0 = 정후방, + = 차 코가 화면 왼쪽. 게임의 +yaw 는 우핸들
+       (코가 오른쪽) 이므로 |yaw| 프레임을 쓰고 게임 yaw 가 양수일 때 좌우 반전한다. */
+    sprites: {
+      dir: 'car/',                 // assets/game/car/<색>/car_<ii>_<yyy>deg.png
+      framePx: 384, pxPerM: 80,    // 렌더 축척(게임 접지선 축척과 동일)
+      anchorX: 192, anchorY: 241,  // 접지선 앵커(프레임 픽셀, 위에서 기준 행)
+      camDist: 9, pitchDeg: 10, targetZ: 0.62,   // fx 앵커 투영 수식에 쓴다
+      yaws: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60, 75, 90, 120, 150, 180],
+      palettes: [
+        { id: 'blue', name: '미드나잇 블루', hex: '#31466d' },
+        { id: 'red', name: '시그널 레드', hex: '#751f22' },
+        { id: 'white', name: '펄 화이트', hex: '#a8b0b8' }
+      ],
+      paletteDefault: 'blue',
+      /* 차 좌표(m): +X = 앞, +Y = 차 좌측, +Z = 위. car_geo.FX_POINTS 와 동일.
+         오버레이(브레이크 발광/니트로 불꽃/손상 연기) 를 얹을 위치다. */
+      fx: {
+        center: [0, 0, 0.35], rear: [-2.6, 0, 0.35],
+        tailL: [-1.935, 0.760, 0.612], tailR: [-1.935, -0.760, 0.612],
+        tailC: [-2.098, 0, 0.598],
+        drlL: [1.955, 0.655, 0.552], drlR: [1.955, -0.655, 0.552],
+        exhL: [-2.130, 0.330, 0.235], exhR: [-2.130, -0.330, 0.235],
+        hood: [1.500, 0, 0.780],
+        wheelRL: [-1.150, 0.845, 0], wheelRR: [-1.150, -0.845, 0]
+      }
+    }
   },
 
   unitPerMeter: 100,       // 월드 유닛 → 미터 환산(속도·소품·차량 크기 공통 기준)
@@ -208,3 +238,19 @@ const PALETTE = {
   skyMid:     '#0d1526',
   horizon:    '#17233a'
 };
+
+/* --------------------------------------------------------------------------
+   차량 yaw 스프라이트 에셋 항목 생성 (색 3종 × yaw 16장 = 48장).
+   id = car_<색>_<프레임 번호>, url 은 car_render.py 의 파일명과 맞춘다.
+   프레임이 없으면 Assets.has() 가 false → 절차적 차량으로 폴백한다.
+   -------------------------------------------------------------------------- */
+(function addCarSpriteAssets() {
+  const S = CONFIG.car.sprites, A = CONFIG.assets;
+  for (const p of S.palettes) {
+    for (let i = 0; i < S.yaws.length; i++) {
+      const n = (i < 10 ? '0' : '') + i, y3 = ('00' + S.yaws[i]).slice(-3);
+      A.list.push({ id: 'car_' + p.id + '_' + n, type: 'img',
+                    url: S.dir + p.id + '/car_' + n + '_' + y3 + 'deg.png' });
+    }
+  }
+})();

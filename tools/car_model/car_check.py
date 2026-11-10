@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# car_hero_*.png 를 수치로 검증한다(이미지를 못 보는 환경에서의 확인 수단).
+# car_hero_*.jpg 를 수치로 검증한다(이미지를 못 보는 환경에서의 확인 수단).
 # 실행: powershell -NoProfile -File tools/car_model/run_blender.ps1 tools/car_model/car_check.py car_check
 import os
 
@@ -8,7 +8,7 @@ import numpy as np
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 REFS = os.path.join(ROOT, 'docs', 'refs')
-FILES = ['car_hero_000.jpg', 'car_hero_020.jpg', 'car_hero_045.jpg', 'car_hero_090.jpg']
+PPM = 160.0                     # car_hero.py 의 렌더 축척(768px / 4.8m)
 
 
 def stats(path):
@@ -33,20 +33,23 @@ def stats(path):
         'white_px': int(white.sum()),
         'ink_frac': round(float(dark.mean() + 0), 4),
         'ink_bbox': '%d..%d x %d..%d' % (xs.min(), xs.max(), ys.min(), ys.max()) if len(xs) else 'none',
-        'ink_w_m': round((xs.max() - xs.min()) / 160.0, 3) if len(xs) else 0,
-        'ink_h_m': round((ys.max() - ys.min()) / 160.0, 3) if len(ys) else 0,
+        'ink_w_m': round((xs.max() - xs.min()) / PPM, 3) if len(xs) else 0,
+        'ink_h_m': round((ys.max() - ys.min()) / PPM, 3) if len(ys) else 0,
     }
 
 
 def main():
-    for f in FILES:
+    files = sorted([f for f in os.listdir(REFS) if f.startswith('car_hero_') and f.endswith('.jpg')]) \
+        if os.path.isdir(REFS) else []
+    if not files:
+        print('CHECK_MISSING(car_hero_*.jpg 가 없습니다. car_hero.py 를 먼저 실행하세요)')
+        return 1
+    for f in files:
         p = os.path.join(REFS, f)
-        if not os.path.exists(p):
-            print('CHECK_MISSING ' + f)
-            continue
         d = stats(p)
         print('CHECK %s ' % f + ' '.join('%s=%s' % kv for kv in d.items()))
     return 0
 
 
-main()
+if __name__ == '__main__':
+    main()

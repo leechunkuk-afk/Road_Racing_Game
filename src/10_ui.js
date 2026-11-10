@@ -12,13 +12,14 @@ SFX
   collision / debris by rubberduck (CC0)
 Art
   Kenney "Racing pack" (CC0) - 장애물·코스 오브젝트
-  Unlucky Studio "Free Top Down Car Sprites" (CC0) - 차량
+  Unlucky Studio "Free Top Down Car Sprites" (CC0) - AI·교통차(상단 뷰)
   FisherG "Parallax City - Night" (CC0) - 파라락 배경
   Alucard "Cars 2D Top Down" (CC-BY 3.0), Carlos Alface "2D Old Cars Pack" (OGA-BY 3.0)
   overcrafted "top down pixel police car" (OGA-BY 3.0)
   fridaruiz "pixel night city" (CC-BY 4.0)
 All above collected from OpenGameArt.org (2026-11). 일부는 리사이즈/트리밍 등 개작되어 사용되었습니다.
-자체 제작: 2.5D 도로·조명·파티클·HUD 렌더링, 절차적 가로등/빌딩, WebAudio 폴백 사운드.`;
+자체 제작: 2.5D 도로·조명·파티클·HUD 렌더링, 절차적 가로등/빌딩, WebAudio 폴백 사운드,
+플레이어 차량 3D 모델과 yaw 스프라이트 48장(Blender 5.2 로 자체 렌더 · 제3자 자산 아님).`;
 
 const UI = {
   el: {},
@@ -44,6 +45,7 @@ const UI = {
     bind('btnMusic', () => { const on = Sound.toggleMusic(); Toast.show('음악: ' + (on ? '켬' : '끔')); });
     bind('btnResume', () => Game.resume());
     bind('btnMenu', () => Game.toMenu());
+    this.buildColors();
 
     // 첫 사용자 상호작용에서 사운드 해제
     const unl = () => Sound.unlock();
@@ -64,6 +66,43 @@ const UI = {
     if (e) e.classList.remove('hidden');
   },
   none() { this.hideAll(); },
+
+  /* ---- 차량 색 고르기(조작/설정 패널). M4 에서 차고로 옮길 예정. ---- */
+  buildColors() {
+    const row = document.getElementById('rowColors');
+    if (!row) return;
+    this.el.rowColors = row;
+    row.innerHTML = '';
+    for (const p of CONFIG.car.sprites.palettes) {
+      const b = document.createElement('button');
+      b.dataset.pal = p.id;
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        Sound.unlock();
+        const q = Game.setCarColor(p.id);
+        if (q) {
+          this.markColors();
+          Toast.show('차량 색: ' + q.name +
+            (Sprites.carSpritesReady(q.id) ? '' : ' (스프라이트 없음 → 절차적 차체)'));
+        }
+        b.blur();
+      });
+      row.appendChild(b);
+    }
+    this.markColors();
+  },
+  markColors() {
+    const row = this.el.rowColors;
+    if (!row) return;
+    const cur = Game.carPalette().id;
+    for (const b of row.children) {
+      const p = CONFIG.car.sprites.palettes.filter((q) => q.id === b.dataset.pal)[0];
+      if (!p) continue;
+      const on = p.id === cur;
+      b.textContent = (on ? '● ' : '○ ') + p.name;
+      b.className = on ? '' : 'alt';
+    }
+  },
 
   bootProgress(p, msg) {
     if (this.el.bootBar) this.el.bootBar.style.width = Math.round(p * 100) + '%';

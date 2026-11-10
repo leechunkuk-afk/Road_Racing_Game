@@ -4,7 +4,7 @@
 const Game = {
   mode: 'boot',
   clock: 0,
-  carColor: '#d8213f',
+  carColor: '#31466d',      // 보닛 뷰/절차적 폴백용 차체색(차고에서 고른 색과 맞춘다)
   step: 1 / 60,
   acc: 0,
   last: 0,
@@ -12,10 +12,28 @@ const Game = {
   running: false,
   seed: 20261110,
 
+  /* ---- 차량 색(Blender 스프라이트 3종). M4 차고에서 쓰는 API 이다. ---- */
+  carPalette() {
+    const S = CONFIG.car.sprites;
+    let p = null;
+    for (const q of S.palettes) if (q.id === Save.data.carColor) p = q;
+    return p || S.palettes[0];
+  },
+  setCarColor(id) {
+    let p = null;
+    for (const q of CONFIG.car.sprites.palettes) if (q.id === id) p = q;
+    if (!p) return null;
+    Save.data.carColor = p.id;
+    Save.put();
+    this.carColor = p.hex;
+    return p;
+  },
+
   boot() {
     SCR.init();
     Input.init();
     Save.load();
+    this.carColor = this.carPalette().hex;
     Assets.init();
 
     UI.init();

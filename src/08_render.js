@@ -532,12 +532,24 @@ const Render = {
     }
     g.save();
     g.translate(0, -air * 60);
-    Sprites.carRear(g, cx, cy + (Physics.cam.bob || 0) * 0.6, w, h, {
-      color: Game.carColor,
-      steer: p.steer, yaw: p.yaw + p.slip * p.steer * 0.6, brake: p.brakeOn || p.speed < p.prevSpeed,
-      boost: p.boost, dmg: dmg, drift: p.slip, air: air,
-      light: lampLit, wing: Save.data.wing !== false, plate: Save.data.plate || 'ND-01'
+    const gy = cy + (Physics.cam.bob || 0) * 0.6;
+    const yawEff = p.yaw + p.slip * p.steer * 0.6;
+    /* Blender yaw 스프라이트가 있으면 그것으로, 없으면 절차적 차체로 그린다. */
+    const pal = Game.carPalette().id;
+    const useSprite = Sprites.carSpritesReady(pal);
+    const drawn = useSprite && Sprites.carSprite(g, cx, gy, {
+      palette: pal, ppm: this.pxPerMeterAt(cy), yaw: yawEff,
+      brake: p.brakeOn || p.speed < p.prevSpeed, boost: p.boost,
+      dmg: dmg, air: air, light: lampLit
     });
+    if (!drawn) {
+      Sprites.carRear(g, cx, gy, w, h, {
+        color: Game.carColor,
+        steer: p.steer, yaw: yawEff, brake: p.brakeOn || p.speed < p.prevSpeed,
+        boost: p.boost, dmg: dmg, drift: p.slip, air: air,
+        light: lampLit, wing: Save.data.wing !== false, plate: Save.data.plate || 'ND-01'
+      });
+    }
     g.restore();
   },
 

@@ -128,7 +128,8 @@ const Input = {
 /* ------------------------------------------------------------ save(설정) -- */
 const Save = {
   KEY: 'nightdrive.settings.v1',
-  data: { musicOn: true, cam: 'chase', quality: 'high', volume: 0.85, seen: {} },
+  data: { musicOn: true, cam: 'chase', quality: 'high', volume: 0.85, seen: {},
+          carColor: CONFIG.car.sprites.paletteDefault },
   load() {
     try {
       const raw = localStorage.getItem(this.KEY);

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
-#  car_hero.py - 검토용으로 큰 사이즈의 정지 프레임 4장을 렌더한다(배경 포함).
+#  car_hero.py - 검토용으로 큰 사이즈의 정지 프레임을 색별로 렌더한다(배경 포함).
 #
 #  실행:  powershell -NoProfile -File tools/car_model/run_blender.ps1 tools/car_model/car_hero.py car_hero
-#  출력:  docs/refs/car_hero_<yaw>.png
+#  출력:  docs/refs/car_hero_<색>_<yaw>.jpg
 #
 #  car_sprites.blend(car_render.py 가 저장한 카메라/조명/차체)를 그대로 쓰고,
 #  해상만 2배로 올린다(px_per_m = 160). 배경을 투명하게 하지 않아서 페인트와
@@ -19,9 +19,12 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 SPRITES = os.path.join(ROOT, 'assets', 'car', 'car_sprites.blend')
 OUT_DIR = os.path.join(ROOT, 'docs', 'refs')
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import car_render as R                                           # noqa: E402
+
 PX = 768
 ORTHO_SCALE = 4.8          # 768 / 4.8 = 160 px/m
-YAWS = [0, 20, 45, 90]
+YAWS = [0, 45, 90]
 TARGET_Z = 0.62
 PITCH = 10.0
 CAM_DIST = 9.0
@@ -57,12 +60,16 @@ def main():
         sc.eevee.taa_render_samples = 48
     cam.data.ortho_scale = ORTHO_SCALE
     os.makedirs(OUT_DIR, exist_ok=True)
-    for yaw in YAWS:
-        place(cam, yaw)
-        path = os.path.join(OUT_DIR, 'car_hero_%03d.jpg' % yaw)
-        sc.render.filepath = path
-        bpy.ops.render.render(write_still=True)
-        print('HERO yaw=%3d px_per_m=%.1f -> %s' % (yaw, PX / ORTHO_SCALE, path))
+    for pal in R.PALETTES:
+        if not R.set_paint(pal):
+            return 1
+        for yaw in YAWS:
+            place(cam, yaw)
+            path = os.path.join(OUT_DIR, 'car_hero_%s_%03d.jpg' % (pal[0], yaw))
+            sc.render.filepath = path
+            bpy.ops.render.render(write_still=True)
+            print('HERO pal=%s yaw=%3d px_per_m=%.1f -> %s'
+                  % (pal[0], yaw, PX / ORTHO_SCALE, path))
     print('HERO_OK')
     return 0
 
