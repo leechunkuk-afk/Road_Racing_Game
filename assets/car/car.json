@@ -1,0 +1,158 @@
+{
+  "blender": "5.2.4 LTS",
+  "units": "meters",
+  "axis": "+X 앞, +Y 좌, +Z 위, 지면 z=0",
+  "car": {
+    "length_m": 4.3,
+    "width_m": 1.976,
+    "height_m": 1.224,
+    "wheelbase_m": 2.45,
+    "track_m": 1.69,
+    "tire_r_m": 0.345,
+    "ground_z": 0.0,
+    "front_x": 2.105,
+    "rear_x": -2.195
+  },
+  "expected": {
+    "lengthM": 4.3,
+    "widthM": 1.95,
+    "heightM": 1.22,
+    "tol_m": 0.03
+  },
+  "objects": {
+    "body": {
+      "verts": 856,
+      "mats": [
+        "paint",
+        "glass"
+      ],
+      "bbox_min": [
+        -2.16,
+        -0.9501,
+        0.115
+      ],
+      "bbox_max": [
+        2.08,
+        0.9469,
+        1.224
+      ]
+    },
+    "trim": {
+      "verts": 112,
+      "mats": [
+        "trim"
+      ],
+      "bbox_min": [
+        -2.195,
+        -0.8925,
+        0.085
+      ],
+      "bbox_max": [
+        2.105,
+        0.8925,
+        0.76
+      ]
+    },
+    "lampR": {
+      "verts": 24,
+      "mats": [
+        "lampR"
+      ],
+      "bbox_min": [
+        -2.133,
+        -0.855,
+        0.567
+      ],
+      "bbox_max": [
+        -1.85,
+        0.855,
+        0.6545
+      ]
+    },
+    "lampW": {
+      "verts": 16,
+      "mats": [
+        "lampW"
+      ],
+      "bbox_min": [
+        1.89,
+        -0.805,
+        0.5245
+      ],
+      "bbox_max": [
+        2.02,
+        0.805,
+        0.5795
+      ]
+    },
+    "plate": {
+      "verts": 8,
+      "mats": [
+        "plate"
+      ],
+      "bbox_min": [
+        -2.15,
+        -0.21,
+        0.27
+      ],
+      "bbox_max": [
+        -2.12,
+        0.21,
+        0.41
+      ]
+    },
+    "tire": {
+      "verts": 288,
+      "mats": [
+        "tire"
+      ],
+      "bbox_min": [
+        -1.495,
+        -0.975,
+        0.0
+      ],
+      "bbox_max": [
+        1.645,
+        0.975,
+        0.69
+      ]
+    },
+    "rim": {
+      "verts": 512,
+      "mats": [
+        "rim"
+      ],
+      "bbox_min": [
+        -2.1875,
+        -0.988,
+        0.095
+      ],
+      "bbox_max": [
+        1.55,
+        0.988,
+        0.595
+      ]
+    },
+    "caliper": {
+      "verts": 32,
+      "mats": [
+        "caliper"
+      ],
+      "bbox_min": [
+        -1.2075,
+        -0.695,
+        0.2575
+      ],
+      "bbox_max": [
+        1.3975,
+        0.695,
+        0.4725
+      ]
+    }
+  },
+  "diff": {
+    "lengthM": 0.0,
+    "widthM": 0.026,
+    "heightM": 0.004
+  }
+}
