@@ -1,0 +1,3207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>NIGHT DRIVE: Neon City Racer</title>
+<!--
+  NIGHT DRIVE: Neon City Racer
+  - 이 파일은 tools/build_single_html.js 로 생성됩니다. (개발 소스: src/*.js)
+  - 기획서: docs/01_기본작업_기획서.md (v0.2)
+  - 에셋/라이선스: docs/02_소재_컬렉션_라이선스.md, CREDITS.md
+  - 라이브러리 의존성 0. assets/game/ 가 없어도 절차적 드로잉/합성으로 동작합니다.
+-->
+<style>
+  :root{
+    --neon:#31d9ff; --neon2:#ff2f8e; --amber:#ffc46b; --ink:#05070d;
+    --panel:rgba(6,9,16,.88); --line:rgba(120,190,255,.28);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;background:#000;color:#e8f2ff;
+    font-family:'Segoe UI','Malgun Gothic','맑은 고딕',system-ui,sans-serif;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 35%,#101a2c 0%,#05070d 60%,#000 100%)}
+  #stage{position:relative;line-height:0}
+  canvas#game{display:block;background:#05070d;image-rendering:auto;
+    box-shadow:0 0 0 1px rgba(120,190,255,.16),0 0 90px rgba(20,120,200,.22)}
+  .layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    pointer-events:none}
+  .panel{pointer-events:auto;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:26px 30px;min-width:min(560px,92vw);max-height:92%;
+    overflow:auto;backdrop-filter:blur(6px);
+    box-shadow:0 18px 60px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.03)}
+  .hidden{display:none !important}
+  h1{font-size:30px;letter-spacing:2px;color:#fff;text-shadow:0 0 16px var(--neon),0 0 34px rgba(49,217,255,.45)}
+  h1 b{color:var(--neon2);text-shadow:0 0 16px var(--neon2)}
+  h2{font-size:17px;color:var(--neon);margin:16px 0 8px;letter-spacing:1px}
+  p,li,td,th{font-size:13.5px;line-height:1.65;color:#c6d6ea}
+  .sub{color:#8fa8c4;font-size:12.5px;margin-top:6px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  button{pointer-events:auto;cursor:pointer;font:inherit;font-size:14px;color:#eaf6ff;
+    background:linear-gradient(180deg,rgba(49,217,255,.16),rgba(49,217,255,.05));
+    border:1px solid rgba(90,200,255,.42);border-radius:9px;padding:11px 16px;
+    text-shadow:0 0 8px rgba(49,217,255,.5);transition:.12s}
+  button:hover{background:linear-gradient(180deg,rgba(49,217,255,.30),rgba(49,217,255,.10));
+    border-color:#63d8ff;transform:translateY(-1px)}
+  button.alt{color:#ffd7e8;border-color:rgba(255,60,140,.45);text-shadow:0 0 8px rgba(255,60,140,.5);
+    background:linear-gradient(180deg,rgba(255,47,142,.14),rgba(255,47,142,.04))}
+  kbd{display:inline-block;min-width:22px;padding:1px 6px;border-radius:4px;border:1px solid #4a6a8c;
+    background:#0d1622;color:#bfe2ff;font-size:12px;text-align:center}
+  table{border-collapse:collapse;width:100%;margin-top:8px}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid rgba(120,190,255,.12)}
+  th{color:#9fd4ff;font-weight:600}
+  .bar{height:8px;border-radius:5px;background:#101a28;border:1px solid var(--line);overflow:hidden;margin-top:10px}
+  .bar>i{display:block;height:100%;width:0%;
+    background:linear-gradient(90deg,var(--neon),var(--neon2));transition:width .18s}
+  .keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:8px}
+  .creditbox{font-size:12px;line-height:1.7;color:#a9c0d8;white-space:pre-wrap}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;
+    border:1px solid rgba(120,190,255,.35);color:#9fd4ff;margin:2px 4px 2px 0}
+  .warn{color:#ffc46b}
+  #toast{position:absolute;left:50%;top:12%;transform:translateX(-50%);
+    font-size:15px;color:#fff;text-shadow:0 0 12px var(--neon),0 2px 4px #000;
+    padding:8px 16px;background:rgba(6,9,16,.55);border:1px solid var(--line);
+    border-radius:10px;opacity:0;transition:opacity .25s}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="game" width="1280" height="720"></canvas>
+
+    <!-- 부팅/로딩 -->
+    <div class="layer" id="bootLayer">
+      <div class="panel">
+        <h1>NIGHT <b>DRIVE</b></h1>
+        <div class="sub">Neon City Racer &nbsp;·&nbsp; M1 (도로 + 주행)</div>
+        <div class="bar"><i id="bootBar"></i></div>
+        <p id="bootMsg" style="margin-top:10px">초기화 중…</p>
+        <p class="sub" id="bootAssets"></p>
+      </div>
+    </div>
+
+    <!-- 메인 메뉴 -->
+    <div class="layer hidden" id="menuLayer">
+      <div class="panel">
+        <h1>NIGHT <b>DRIVE</b></h1>
+        <div class="sub">가로등만 이어지는 밤의 도시. 지금 바로 달릴 수 있습니다.</div>
+        <div class="row">
+          <button id="btnFree">자유주행 시작</button>
+          <button id="btnCred" class="alt">크레딧</button>
+          <button id="btnHelp">조작/설정</button>
+        </div>
+        <h2>준비된 것 / 아직인 것</h2>
+        <p><span class="tag">2.5D 곡선 도로</span><span class="tag">야간 조명</span><span class="tag">원근 배경</span>
+           <span class="tag">엔진음</span><span class="tag">카메라 전환</span>
+           <span class="tag warn">AI·장애물·상점은 M2~M4</span></p>
+        <div class="row">
+          <button id="btnRestart">코스 재생성(R)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 조작/설정 -->
+    <div class="layer hidden" id="helpLayer">
+      <div class="panel">
+        <h2>조작</h2>
+        <div class="keys">
+          <div><kbd>↑</kbd><kbd>W</kbd></div><div>가속</div>
+          <div><kbd>↓</kbd><kbd>S</kbd></div><div>브레이크 / 감속</div>
+          <div><kbd>←</kbd><kbd>→</kbd> <kbd>A</kbd><kbd>D</kbd></div><div>조향</div>
+          <div><kbd>Space</kbd></div><div>핸드브레이크(드프트)</div>
+          <div><kbd>Shift</kbd></div><div>니트로(연료 소모)</div>
+          <div><kbd>C</kbd></div><div>시점 전환 (후방 ↔ 보닛)</div>
+          <div><kbd>R</kbd></div><div>코스 재생성 / 위치 리셋</div>
+          <div><kbd>M</kbd></div><div>음악 켜기/끄기</div>
+          <div><kbd>Esc</kbd></div><div>일시정지 / 메뉴</div>
+        </div>
+        <h2>표시</h2>
+        <p>우측 상단: FPS · 에셋 상태(실물/절차적). 하단 좌: 속도·기어 · 우: 커브 미니맵.</p>
+        <div class="row">
+          <button id="btnHelpClose">닫기</button>
+          <button id="btnMusic">음악: 켜기/끄기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 크레딧 (라이선스 표기) -->
+    <div class="layer hidden" id="credLayer">
+      <div class="panel">
+        <h2>크레딧 — 사용한 저작물</h2>
+        <div class="creditbox" id="credText"></div>
+        <div class="row"><button id="btnCredClose">닫기</button></div>
+      </div>
+    </div>
+
+    <!-- 일시정지 -->
+    <div class="layer hidden" id="pauseLayer">
+      <div class="panel">
+        <h1 style="font-size:22px">일시정지</h1>
+        <p class="sub"><kbd>Esc</kbd> 계속 &nbsp;·&nbsp; <kbd>R</kbd> 코스 재생성</p>
+        <div class="row">
+          <button id="btnResume">계속하기</button>
+          <button id="btnMenu">메뉴로</button>
+          <button id="btnCred2" class="alt">크레딧</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ===== 생성된 단일 파일. 아래는 src/*.js 를 순서대로 병합한 것이다. ===== */
+</script>
+
+<script>
+"use strict";
+/* 자동 생성: index.html - 2026-11-09 22:33:19 UTC
+   원본: src/shell.html + 01_config.js, 02_core.js, 03_assets.js, 04_sprites.js, 05_sound.js, 06_road.js, 07_physics.js, 08_render.js, 09_hud.js, 10_ui.js, 11_main.js
+   재생성: node tools/build_single_html.js
+   라이브러리 의존성 0 / assets/game 없어도 절차적 폴백으로 동작 */
+/* ===== 01_config.js ===== */
+/* ==========================================================================
+   CONFIG · 코스/물리/조명/오디오의 모든 수치 (단일 진실의 원천)
+   ========================================================================== */
+const SCREEN = { w: 1280, h: 720 };
+
+const CONFIG = {
+  version: '0.1.0-m1',
+
+  camera: {
+    height: 480,           // 도로면 위 카메라 높이(유닛)
+    fovBase: 100,          // 기준 화각(도)
+    fovMax: 126,           // 최고속에서 넓어지는 화각(속도감)
+    drawDistance: 220,     // 세그먼트 수
+    fogDensity: 4.2,       // 원거리 어둠(클수록 짙음)
+    playerZOffset: 0,      // 런타임 계산 (cameraDepth * roadHalf)
+    bob: 1.0
+  },
+
+  road: {
+    width: 900,            // 도로 절반 폭(유닛, 100유닛=1m). 전체 폭은 18m
+    segLen: 200,
+    rumbleLen: 3,          // 세그먼트 3개 = 1 루머블 패턴
+    lanes: 3,
+    laneMarkerW: 0.02,     // 절반 폭 대비 차선 마커 두께
+    railLimit: 1.22,       // 가드레일 내측 한계(playerX 단위 = 절반 폭 배수)
+    railHeight: 115        // 가드레일 높이(월드 유닛)
+  },
+
+  physics: {
+    maxSpeed: 0,           // setup() 에서 segLen/rumbleLen/(1/60) 로 계산
+    accel: 0, brake: 0, decel: 0,
+    offRoadDecel: 0, offRoadLimit: 0,
+    centrifugal: 0.34,     // 커브에서 바깥으로 밀리는 강도
+    steerRate: 2.3,        // 초당 조향량(속도 100% 기준)
+    gripAsphalt: 1.0,
+    kmhFactor: 0.036,      // 유닛/초 -> km/h
+    dragShifts: 6
+  },
+
+  lighting: {
+    ambient: 0.20,         // 가로등 없는 구간 최소 밝기
+    lampSpacing: 9,        // 세그먼트 간격
+    lampReach: 1500,       // 가로등 빛 도달 거리(유닛)
+    lampBoost: 0.62,       // 빛 최대 추가 밝기
+    headReach: 2600,       // 헤드램프 도달 거리(유닛)
+    headNear: 260,         // 헤드램프가 가장 밝은 근처 거리
+    headBoost: 0.90,
+    warmTint: 'rgba(255,196,120,0.10)'
+  },
+
+  surfaces: {
+    asphalt: 1.00, wet: 0.78, gravel: 0.55, dirt: 0.42, ice: 0.32, oil: 0.18, ramp: 0.90
+  },
+
+  /* 노면 위험 요소: ko = 화면 표시 이름, grip = CONFIG.surfaces 의 그립 계수 키 */
+  hazardInfo: {
+    oil:    { ko: '기름 유출', grip: 'oil' },
+    ice:    { ko: '빙판', grip: 'ice' },
+    gravel: { ko: '비포장', grip: 'gravel' },
+    wet:    { ko: '젖은 노면', grip: 'wet' }
+  },
+  hazard: {
+    count: 14,          // 코스당 위험 구간 개수
+    minLen: 12, maxLen: 40,
+    rampCount: 6,       // 점프대 개수
+    rampMinSpeed: 0.28, // 발동 최소 속도(최고속 대비)
+    launchBase: 250, launchMore: 340
+  },
+
+  /* 장애물 종류별 충돌 계수: dmg = 피해 배율, keep = 충돌 후 속도 유지율, ko = 화면 표시 이름 */
+  obstacles: {
+    cone:        { dmg: 0.18, keep: 0.74, ko: '콘' },
+    barrier:     { dmg: 1.10, keep: 0.30, ko: '배리어' },
+    barrel:      { dmg: 0.75, keep: 0.44, ko: '드럼통' },
+    tirestack:   { dmg: 0.45, keep: 0.62, ko: '타이어 더미' },
+    rock:        { dmg: 1.00, keep: 0.34, ko: '바위' },
+    tree:        { dmg: 1.30, keep: 0.26, ko: '나무' },
+    streetlight: { dmg: 1.40, keep: 0.24, ko: '가로등' },
+    bldg:        { dmg: 1.60, keep: 0.20, ko: '건물' }
+  },
+
+  fx: {
+    maxParticles: 260,
+    speedLines: 90,
+    shakeMax: 9,
+    bloom: true,
+    motionBlur: 0.35
+  },
+
+  audio: {
+    master: 0.85, music: 0.42, sfx: 0.75, engine: 0.55,
+    musicOn: true
+  },
+
+  assets: {
+    base: 'assets/game/',
+    enabled: true,
+    // id/type/url: type = img | audio | atlas
+    list: [
+      { id: 'px_sky',  type: 'img', url: 'bg/px_sky.png' },
+      { id: 'px_far',  type: 'img', url: 'bg/px_far.png' },
+      { id: 'px_mid',  type: 'img', url: 'bg/px_mid.png' },
+      { id: 'px_close',type: 'img', url: 'bg/px_close.png' },
+      { id: 'px_cars_far',   type: 'img', url: 'bg/px_cars_far.png' },
+      { id: 'px_cars_close', type: 'img', url: 'bg/px_cars_close.png' },
+      { id: 'atlas_objects', type: 'img', url: 'atlas/kenney_spritesheet_objects.png' },
+      { id: 'atlas_vehicles',type: 'img', url: 'atlas/kenney_spritesheet_vehicles.png' },
+      { id: 'eng1', type: 'audio', url: 'sfx/engine_loop_1.wav' },
+      { id: 'eng2', type: 'audio', url: 'sfx/engine_loop_2.wav' },
+      { id: 'eng3', type: 'audio', url: 'sfx/engine_loop_3.wav' },
+      { id: 'eng_start', type: 'audio', url: 'sfx/engine_start.wav' },
+      { id: 'crash1', type: 'audio', url: 'sfx/crash_bfh1_hit_02.ogg' },
+      { id: 'crash2', type: 'audio', url: 'sfx/crash_bfh1_metal_falling_01.ogg' },
+      { id: 'boost_s', type: 'audio', url: 'sfx/boost-start.ogg' },
+      { id: 'boost_l', type: 'audio', url: 'sfx/boost-loop.ogg' },
+      { id: 'boost_e', type: 'audio', url: 'sfx/boost-end.ogg' },
+      { id: 'mus_menu',  type: 'audio', url: 'music/menu_cut.mp3' },
+      { id: 'mus_cruise',type: 'audio', url: 'music/night_drive_cut.mp3' },
+      { id: 'mus_race',  type: 'audio', url: 'music/race_cut.mp3' }
+    ]
+  }
+};
+
+/* Kenney Racing Pack(objects) 시트 좌표 - assets/game/atlas/kenney_spritesheet_objects.xml
+   파일 fetch 없이 쓰기 위해 상수로 하드카피 (file:// 대응) */
+const SPRITES_KENNEY_OBJECTS = {
+  sheet: 'atlas_objects', pw: 1024, ph: 1024,
+  frames: {
+    cone_straight:[800,645,45,44], cone_down:[795,947,46,44],
+    barrier_red:[450,406,210,62], barrier_red_race:[450,278,210,62],
+    barrier_white:[450,214,210,62], barrier_white_race:[450,342,210,62],
+    barrel_red:[737,934,56,56], barrel_red_down:[728,645,70,48],
+    barrel_blue:[762,368,56,56], barrel_blue_down:[666,139,70,48],
+    tires_red:[762,194,56,56], tires_white:[762,310,56,56],
+    rock1:[646,934,89,72], rock2:[666,69,73,68], rock3:[666,0,87,67],
+    oil:[617,600,109,95],
+    tree_small:[516,738,141,141], tree_large:[450,0,214,212],
+    light_white:[662,214,98,235], light_yellow:[659,697,98,235],
+    lights:[450,672,160,64],
+    skidmark_long_1:[759,695,60,192], skidmark_long_2:[755,0,60,192],
+    arrow_white:[450,571,165,99], arrow_yellow:[450,470,165,99],
+    tribune_empty:[0,517,448,223], tribune_full:[0,292,448,223]
+  }
+};
+
+/* Kenney Racing Pack(vehicles) - 탑뷰. 미니맵/아이콘용 */
+const SPRITES_KENNEY_VEHICLES = {
+  sheet: 'atlas_vehicles', pw: 1024, ph: 512,
+  frames: {
+    car_black_1:[0,0,71,131], car_black_3:[290,133,70,131],
+    car_blue_1:[0,251,71,131]
+  }
+};
+
+/* 코스 제작 상수 */
+const ROAD = {
+  LEN:   { NONE: 0, SHORT: 25, MEDIUM: 50, LONG: 100 },
+  CURVE: { NONE: 0, EASY: 2, MEDIUM: 4, HARD: 6 },
+  HILL:  { NONE: 0, LOW: 20, MEDIUM: 40, HIGH: 60 }
+};
+
+/* 소품 종류별 실제 크기(월드 유닛: [폭, 높이], 도로 절반폭 900 기준) */
+const PROP_SIZE = {
+  streetlight: [150,  950],
+  tree:        [420,  540],
+  bldg:        [1500, 2600],
+  bldg_far:    [2100, 3900],
+  cone:        [70,   85],
+  barrier:     [430,  120],
+  barrel:      [115,  130],
+  tirestack:   [140,  150],
+  rock:        [220,  180],
+  lamphead:    [110,  110],
+  ramp:        [760,  210]
+};
+
+/* 야간 도로 색 팔레트 ( 밝기 단계별 캐시는 09_render 에서 만든다 ) */
+const PALETTE = {
+  roadLight:  '#1c2129',
+  roadDark:   '#171b22',
+  rumbleLight:'#8e2c3a',
+  rumbleDark: '#c9d3df',
+  lane:       '#c8d6e5',
+  grassLight: '#0b1018',
+  grassDark:  '#0a0e15',
+  shoulder:   '#232a35',
+  fog:        '#05070d',
+  skyTop:     '#060a14',
+  skyMid:     '#0d1526',
+  horizon:    '#17233a'
+};
+
+/* ===== 02_core.js ===== */
+/* ==========================================================================
+   utils / Screen / Input / Save
+   ========================================================================== */
+const utils = {
+  clamp: (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v),
+  lerp: (a, b, t) => a + (b - a) * t,
+  /* 시드 하나에서 0..1 결정론적 값(패치/무늬 모양을 코스 전체에서 고정하기 위해) */
+  hash01: (i) => { const x = Math.sin(i * 127.1 + 11.7) * 43758.5453; return x - Math.floor(x); },
+  interpolate: (a, b, t) => utils.lerp(a, b, t),
+  easeIn: (a, b, p) => a + (b - a) * Math.pow(p, 2),
+  easeOut: (a, b, p) => a + (b - a) * (1 - Math.pow(1 - p, 2)),
+  easeInOut: (a, b, p) => a + (b - a) * (-Math.cos(p * Math.PI) / 2 + 0.5),
+  exponentialFog: (d, density) => 1 / Math.pow(Math.E, (d * d * density)),
+  inc: (start, inc, max) => { let r = start + inc; if (r > max) r -= max; if (r < 0) r += max; return r; },
+  percentRemaining: (n, total) => (n % total) / total,
+
+  // 결정적 난수 (코스 생성 재현 가능)
+  mulberry32: function (seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  },
+
+  overlap(x1, w1, x2, w2, pct) {
+    const half = pct === undefined ? 0.5 : pct;
+    const min1 = x1 - w1 * half, max1 = x1 + w1 * half;
+    const min2 = x2 - w2 * half, max2 = x2 + w2 * half;
+    return !((max1 < min2) || (min1 > max2));
+  },
+
+  fmtTime(ms) {
+    if (!isFinite(ms) || ms <= 0) return '--:--.--';
+    const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000), c = Math.floor((ms % 1000) / 10);
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + String(c).padStart(2, '0');
+  },
+
+  project(p, camX, camY, camZ, camDepth, width, height, roadWidth) {
+    p.camera.x = (p.world.x || 0) - camX;
+    p.camera.y = (p.world.y || 0) - camY;
+    p.camera.z = (p.world.z || 0) - camZ;
+    p.screen.scale = camDepth / p.camera.z;
+    p.screen.x = Math.round((width / 2) + (p.screen.scale * p.camera.x * width / 2));
+    p.screen.y = Math.round((height / 2) - (p.screen.scale * p.camera.y * height / 2));
+    p.screen.w = Math.round(p.screen.scale * roadWidth * width / 2);
+  }
+};
+
+/* ---------------------------------------------------------------- canvas -- */
+const SCR = {
+  canvas: null, ctx: null, w: SCREEN.w, h: SCREEN.h, dpr: 1, scale: 1,
+  init() {
+    this.canvas = document.getElementById('game');
+    this.ctx = this.canvas.getContext('2d');
+    this.fit();
+    window.addEventListener('resize', () => this.fit());
+  },
+  fit() {
+    const wrap = document.getElementById('wrap');
+    const aw = wrap.clientWidth, ah = wrap.clientHeight;
+    const s = Math.min(aw / this.w, ah / this.h);
+    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.canvas.width = Math.round(this.w * this.dpr);
+    this.canvas.height = Math.round(this.h * this.dpr);
+    this.canvas.style.width = Math.round(this.w * s) + 'px';
+    this.canvas.style.height = Math.round(this.h * s) + 'px';
+    this.scale = s;
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.ctx.imageSmoothingEnabled = true;
+    const st = document.getElementById('stage');
+    st.style.width = this.canvas.style.width;
+    st.style.height = this.canvas.style.height;
+  }
+};
+
+/* ---------------------------------------------------------------- input -- */
+const Input = {
+  keys: {}, pressed: {}, pad: null, padPrev: {},
+  MAP: {
+    ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
+    ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+    Space: 'hand', ShiftLeft: 'boost', ShiftRight: 'boost',
+    KeyC: 'cam', KeyR: 'reset', KeyM: 'music', Escape: 'esc', Enter: 'enter',
+    Digit1: 'k1', Digit2: 'k2', Digit3: 'k3', Digit4: 'k4', F1: 'k1', F2: 'k2'
+  },
+  init() {
+    window.addEventListener('keydown', (e) => this.onKey(e, true));
+    window.addEventListener('keyup', (e) => this.onKey(e, false));
+    window.addEventListener('blur', () => { this.keys = {}; });
+  },
+  onKey(e, down) {
+    const name = this.MAP[e.code];
+    if (!name) return;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].indexOf(e.code) >= 0) e.preventDefault();
+    if (down && !this.keys[name]) this.pressed[name] = true;
+    this.keys[name] = down;
+  },
+  down(n) { return !!this.keys[n]; },
+  hit(n) { if (this.pressed[n]) { this.pressed[n] = false; return true; } return false; },
+  endFrame() { this.pressed = {}; },
+
+  pollPad() {
+    if (!navigator.getGamepads) return;
+    const pads = navigator.getGamepads();
+    for (let i = 0; i < pads.length; i++) {
+      const p = pads[i]; if (!p) continue;
+      this.pad = p;
+      const ax = p.axes[0] || 0, up = p.buttons[15] && p.buttons[15].pressed, dn = p.buttons[14] && p.buttons[14].pressed;
+      const lf = p.buttons[12] && p.buttons[12].pressed, rt = p.buttons[13] && p.buttons[13].pressed;
+      const gas = p.buttons[0] && p.buttons[0].pressed, brk = p.buttons[1] && p.buttons[1].pressed;
+      const hand = p.buttons[2] && p.buttons[2].pressed, bst = p.buttons[7] && p.buttons[7].pressed;
+      if (up || gas) this.keys.up = true;
+      if (dn || brk) this.keys.down = true;
+      if (lf || ax < -0.35) this.keys.left = true;
+      if (rt || ax > 0.35) this.keys.right = true;
+      if (hand) this.keys.hand = true;
+      if (bst) this.keys.boost = true;
+      if (p.buttons[3] && p.buttons[3].pressed && !this.padPrev.start) this.pressed.esc = true;
+      this.padPrev.start = p.buttons[3] && p.buttons[3].pressed;
+      break;
+    }
+  }
+};
+
+/* ------------------------------------------------------------ save(설정) -- */
+const Save = {
+  KEY: 'nightdrive.settings.v1',
+  data: { musicOn: true, cam: 'chase', quality: 'high', volume: 0.85, seen: {} },
+  load() {
+    try {
+      const raw = localStorage.getItem(this.KEY);
+      if (raw) Object.assign(this.data, JSON.parse(raw));
+    } catch (e) { /* file:// 등에서 실패해도 기본값으로 진행 */ }
+    CONFIG.audio.musicOn = this.data.musicOn;
+    return this.data;
+  },
+  put() {
+    try {
+      this.data.musicOn = CONFIG.audio.musicOn;
+      localStorage.setItem(this.KEY, JSON.stringify(this.data));
+    } catch (e) {}
+  }
+};
+
+/* --------------------------------------------------------------- toast -- */
+const Toast = {
+  el: null, t: 0,
+  show(msg, ms) {
+    if (!this.el) this.el = document.getElementById('toast');
+    if (!this.el) return;
+    this.el.textContent = msg;
+    this.el.style.opacity = '1';
+    clearTimeout(this.t);
+    this.t = setTimeout(() => { this.el.style.opacity = '0'; }, ms || 1600);
+  }
+};
+
+/* ===== 03_assets.js ===== */
+/* ==========================================================================
+   Assets (M0.5) - 외부 에셋 로드 + 항목별 폴백 판정
+   실패해도 throw 하지 않는다. 모든 소비자는 Assets.has(id) 로 갈라선다.
+   ========================================================================== */
+const Assets = {
+  items: {}, order: [], done: 0, total: 0, started: false, finished: false,
+
+  init() {
+    this.order = CONFIG.assets.enabled ? CONFIG.assets.list.slice() : [];
+    this.total = this.order.length;
+    for (const a of this.order) this.items[a.id] = { def: a, state: 'wait', obj: null };
+  },
+
+  has(id) { const it = this.items[id]; return !!it && it.state === 'ok'; },
+  img(id) { const it = this.items[id]; return it && it.state === 'ok' ? it.obj : null; },
+  audio(id) { const it = this.items[id]; return it && it.state === 'ok' ? it.obj : null; },
+
+  // assets/game/ 자체가 없는 환경: 전체 폴백
+  allMissing() {
+    if (!this.finished) return false;
+    for (const k in this.items) if (this.items[k].state === 'ok') return false;
+    return true;
+  },
+
+  summary() {
+    let ok = 0, bad = 0, wait = 0;
+    for (const k in this.items) {
+      const s = this.items[k].state;
+      if (s === 'ok') ok++; else if (s === 'fail') bad++; else wait++;
+    }
+    return { ok, bad, wait, total: this.total };
+  },
+
+  load(onProgress, onDone) {
+    this.init();
+    this.started = true;
+    if (!this.total) { this.finished = true; if (onDone) onDone(this.summary()); return; }
+
+    const base = CONFIG.assets.base;
+    const settle = () => {
+      this.done++;
+      if (onProgress) onProgress(this.done, this.total);
+      if (this.done >= this.total) {
+        this.finished = true;
+        if (onDone) onDone(this.summary());
+      }
+    };
+
+    for (const a of this.order) {
+      const it = this.items[a.id];
+      const url = base + a.url;
+      try {
+        if (a.type === 'img') {
+          const im = new Image();
+          im.onload = () => { it.state = 'ok'; it.obj = im; settle(); };
+          im.onerror = () => { it.state = 'fail'; it.obj = null; settle(); };
+          im.src = url;
+        } else if (a.type === 'audio') {
+          const au = new Audio();
+          au.preload = 'auto';
+          au.loop = !!(a.loop || /^mus_/.test(a.id) || /^eng\d$/.test(a.id));
+          au.addEventListener('canplaythrough', () => { it.state = 'ok'; it.obj = au; settle(); }, { once: true });
+          au.addEventListener('error', () => { it.state = 'fail'; it.obj = null; settle(); }, { once: true });
+          // 일부 브라우저는 loadeddata 먼저 옴 - 둘 다 허용
+          au.addEventListener('loadeddata', () => {
+            if (it.state === 'wait' && au.readyState >= 2) { it.state = 'ok'; it.obj = au; settle(); }
+          }, { once: true });
+          au.src = url;
+          if (au.readyState >= 3) { it.state = 'ok'; it.obj = au; }
+        }
+      } catch (e) { it.state = 'fail'; settle(); }
+    }
+
+    // 네트워크 정지/무응답 대비 안전장치
+    setTimeout(() => {
+      if (!this.finished) {
+        for (const k in this.items) if (this.items[k].state !== 'ok') { this.items[k].state = 'fail'; }
+        this.done = this.total; this.finished = true;
+        if (onProgress) onProgress(this.total, this.total);
+        if (onDone) onDone(this.summary());
+      }
+    }, 9000);
+  }
+};
+
+/* ===== 04_sprites.js ===== */
+/* ==========================================================================
+   Sprites - 소품/차량 드로잉. 실물 스프라이트가 있으면 그것을, 없으면 절차적.
+   소비자는 항상 같은 인터페이스를 쓴다:  Sprites.prop(ctx, kind, cx, baseY, w, h)
+   ========================================================================== */
+const Sprites = {
+  bldg: [], lightGlow: null, _built: false,
+
+  build() {
+    if (this._built) return;
+    this._built = true;
+    const rnd = utils.mulberry32(20261110);
+    // 빌딩 실루엣 변형 8종(윈도우 켜짐 패턴) - 한 번만 렌더하고 재사용
+    for (let v = 0; v < 8; v++) {
+      const cw = 96, chh = 192;
+      const c = document.createElement('canvas'); c.width = cw; c.height = chh;
+      const g = c.getContext('2d');
+      const grd = g.createLinearGradient(0, 0, 0, chh);
+      grd.addColorStop(0, '#101725'); grd.addColorStop(1, '#070b13');
+      g.fillStyle = grd; g.fillRect(0, 0, cw, chh);
+      g.strokeStyle = 'rgba(120,180,255,0.10)'; g.strokeRect(0.5, 0.5, cw - 1, chh - 1);
+      const cols = 5, rows = 11;
+      for (let r = 0; r < rows; r++) {
+        for (let cix = 0; cix < cols; cix++) {
+          if (rnd() > 0.42) continue;
+          const warm = rnd();
+          g.fillStyle = warm > 0.72 ? 'rgba(255,196,120,0.85)'
+                      : warm > 0.42 ? 'rgba(150,215,255,0.75)'
+                                    : 'rgba(255,140,190,0.65)';
+          const px = 6 + cix * ((cw - 12) / cols), py = 8 + r * ((chh - 16) / rows);
+          g.fillRect(px, py, (cw - 12) / cols - 4, (chh - 16) / rows - 6);
+        }
+      }
+      // 네온 사인 띠
+      if (v % 3 === 0) {
+        g.fillStyle = v % 2 ? 'rgba(255,47,142,0.75)' : 'rgba(49,217,255,0.75)';
+        g.fillRect(4, chh * 0.18 + (v * 7) % 40, cw - 8, 3);
+      }
+      this.bldg.push(c);
+    }
+    // 가로등 머리 글로우
+    const gc = document.createElement('canvas'); gc.width = gc.height = 128;
+    const gg = gc.getContext('2d');
+    const rg = gg.createRadialGradient(64, 64, 4, 64, 64, 62);
+    rg.addColorStop(0, 'rgba(255,225,170,0.95)');
+    rg.addColorStop(0.35, 'rgba(255,190,110,0.42)');
+    rg.addColorStop(1, 'rgba(255,170,80,0)');
+    gg.fillStyle = rg; gg.fillRect(0, 0, 128, 128);
+    this.lightGlow = gc;
+  },
+
+  frame(id) {
+    const f = SPRITES_KENNEY_OBJECTS.frames[id];
+    if (!f) return null;
+    const sheet = Assets.img(SPRITES_KENNEY_OBJECTS.sheet);
+    return sheet ? { img: sheet, x: f[0], y: f[1], w: f[2], h: f[3] } : null;
+  },
+
+  atlasDraw(ctx, fr, cx, baseY, w, h) {
+    ctx.drawImage(fr.img, fr.x, fr.y, fr.w, fr.h, Math.round(cx - w / 2), Math.round(baseY - h), Math.round(w), Math.round(h));
+  },
+
+  /* kind: streetlight|tree|bldg|bldg_far|cone|barrier|barrel|tirestack|rock */
+  prop(ctx, kind, cx, baseY, w, h, seed) {
+    const s = seed || 0;
+    switch (kind) {
+      case 'streetlight': return this.streetlight(ctx, cx, baseY, w, h, s);
+      case 'bldg':
+      case 'bldg_far': {
+        const v = this.bldg.length ? this.bldg[(s >>> 3) % this.bldg.length] : null;
+        if (v) { ctx.drawImage(v, Math.round(cx - w / 2), Math.round(baseY - h), Math.round(w), Math.round(h)); }
+        else {
+          ctx.fillStyle = kind === 'bldg' ? '#0d1421' : '#0a0f18';
+          ctx.fillRect(Math.round(cx - w / 2), Math.round(baseY - h), Math.round(w), Math.round(h));
+        }
+        return;
+      }
+      case 'tree': {
+        const fr = this.frame(s % 2 ? 'tree_small' : 'tree_large');
+        if (fr) return this.atlasDraw(ctx, fr, cx, baseY, w, h);
+        ctx.fillStyle = '#12331f'; ctx.beginPath();
+        ctx.moveTo(cx, baseY - h); ctx.lineTo(cx + w / 2, baseY); ctx.lineTo(cx - w / 2, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#1a1208'; ctx.fillRect(cx - w * 0.05, baseY - h * 0.18, w * 0.1, h * 0.18);
+        return;
+      }
+      case 'cone': {
+        const fr = this.frame('cone_straight');
+        if (fr) return this.atlasDraw(ctx, fr, cx, baseY, w, h);
+        ctx.fillStyle = '#ff7a2f'; ctx.beginPath();
+        ctx.moveTo(cx, baseY - h); ctx.lineTo(cx + w * 0.42, baseY); ctx.lineTo(cx - w * 0.42, baseY);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(cx - w * 0.3, baseY - h * 0.55, w * 0.6, h * 0.14);
+        return;
+      }
+      case 'barrier': {
+        const fr = this.frame('barrier_red_race');
+        if (fr) return this.atlasDraw(ctx, fr, cx, baseY, w, h);
+        ctx.fillStyle = '#d9414f'; ctx.fillRect(cx - w / 2, baseY - h, w, h);
+        ctx.fillStyle = '#e9eef5';
+        for (let i = 0; i < 4; i++) ctx.fillRect(cx - w / 2 + i * (w / 4) + w * 0.02, baseY - h, w * 0.2, h);
+        return;
+      }
+      case 'barrel': {
+        const fr = this.frame('barrel_red');
+        if (fr) return this.atlasDraw(ctx, fr, cx, baseY, w, h);
+        ctx.fillStyle = '#c8394a'; ctx.beginPath();
+        ctx.ellipse(cx, baseY - h / 2, w / 2, h / 2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillRect(cx - w / 2, baseY - h * 0.62, w, h * 0.16);
+        return;
+      }
+      case 'tirestack': {
+        const fr = this.frame('tires_red');
+        if (fr) return this.atlasDraw(ctx, fr, cx, baseY, w, h);
+        ctx.fillStyle = '#16181c'; ctx.beginPath();
+        ctx.ellipse(cx, baseY - h / 2, w / 2, h / 2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e7edf3'; ctx.beginPath();
+        ctx.ellipse(cx, baseY - h / 2, w * 0.22, h * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+        return;
+      }
+      case 'ramp': {
+        // 점프대: 노란/검정 사선 + 진행 방향 화살표
+        ctx.fillStyle = 'rgba(8,10,14,0.55)';
+        ctx.beginPath();
+        ctx.moveTo(cx - w * 0.52, baseY); ctx.lineTo(cx - w * 0.38, baseY - h * 0.86);
+        ctx.lineTo(cx + w * 0.38, baseY - h * 0.86); ctx.lineTo(cx + w * 0.52, baseY);
+        ctx.closePath(); ctx.fill();
+        const wg = ctx.createLinearGradient(0, baseY - h, 0, baseY);
+        wg.addColorStop(0, '#f2c33c');
+        wg.addColorStop(0.55, '#c99423');
+        wg.addColorStop(1, '#6d4f14');
+        ctx.fillStyle = wg;
+        ctx.beginPath();
+        ctx.moveTo(cx - w * 0.46, baseY - h * 0.05); ctx.lineTo(cx - w * 0.33, baseY - h * 0.80);
+        ctx.lineTo(cx + w * 0.33, baseY - h * 0.80); ctx.lineTo(cx + w * 0.46, baseY - h * 0.05);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(12,14,18,0.85)';
+        for (let k = 0; k < 4; k++) {
+          const yy = baseY - h * (0.12 + k * 0.19);
+          ctx.fillRect(cx - w * 0.42, yy, w * 0.84, h * 0.075);
+        }
+        ctx.fillStyle = 'rgba(255,246,214,0.30)';
+        ctx.fillRect(cx - w * 0.33, baseY - h * 0.84, w * 0.66, h * 0.05);
+        if (w > 26) {
+          ctx.fillStyle = 'rgba(18,20,26,0.75)';
+          for (let k = 0; k < 2; k++) {
+            const ay = baseY - h * (0.30 + k * 0.26);
+            ctx.beginPath();
+            ctx.moveTo(cx, ay - h * 0.14); ctx.lineTo(cx + w * 0.16, ay);
+            ctx.lineTo(cx + w * 0.06, ay); ctx.lineTo(cx, ay - h * 0.06);
+            ctx.lineTo(cx - w * 0.06, ay); ctx.lineTo(cx - w * 0.16, ay);
+            ctx.closePath(); ctx.fill();
+          }
+        }
+        return;
+      }
+      case 'rock': {
+        const fr = this.frame('rock' + (1 + (s % 3)));
+        if (fr) return this.atlasDraw(ctx, fr, cx, baseY, w, h);
+        ctx.fillStyle = '#3a3f47'; ctx.beginPath();
+        ctx.moveTo(cx - w / 2, baseY); ctx.lineTo(cx - w * 0.2, baseY - h);
+        ctx.lineTo(cx + w * 0.35, baseY - h * 0.8); ctx.lineTo(cx + w / 2, baseY);
+        ctx.closePath(); ctx.fill();
+        return;
+      }
+    }
+  },
+
+  streetlight(ctx, cx, baseY, w, h, s) {
+    const side = (s % 2) ? 1 : -1;          // 도로 바깥으로 팔이 꺾임
+    const poleW = Math.max(1.2, w * 0.055);
+    ctx.strokeStyle = '#2b3441';
+    ctx.lineWidth = poleW;
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY);
+    ctx.lineTo(cx, baseY - h * 0.86);
+    const armX = cx + side * w * 0.42;
+    ctx.quadraticCurveTo(cx + side * w * 0.05, baseY - h * 0.99, armX, baseY - h * 0.95);
+    ctx.stroke();
+    // 램프 머리 + 글로우
+    const hw = Math.max(2, w * 0.20), hh = Math.max(1.5, h * 0.035);
+    ctx.fillStyle = '#f3e3c0';
+    ctx.fillRect(armX - hw / 2, baseY - h * 0.95, hw, hh);
+    if (CONFIG.fx.bloom && this.lightGlow && hw > 1.5) {
+      const g = Math.max(hw * 4.2, hh * 10);
+      ctx.globalAlpha = 0.55;
+      ctx.drawImage(this.lightGlow, armX - g / 2, baseY - h * 0.95 - g * 0.28, g, g);
+      ctx.globalAlpha = 1;
+    }
+  },
+
+  /* player/AI 차량 (후방 3/4 뷰).
+     opt: {color, steer, yaw, drift, brake, boost, dmg, air, light, wing} */
+  carRear(ctx, cx, baseY, w, h, opt) {
+    const o = opt || {};
+    const steer = utils.clamp(o.steer || 0, -1, 1);
+    const drift = utils.clamp(o.drift || 0, 0, 1);
+    const yaw = utils.clamp((o.yaw !== undefined ? o.yaw : steer * 0.15) * 3.4, -1, 1);
+    const col = o.color || '#c81f3a';
+    const dmg = utils.clamp(o.dmg || 0, 0, 1);
+    const air = utils.clamp(o.air || 0, 0, 1);
+    const lit = utils.clamp(o.light === undefined ? 0.9 : o.light, 0.25, 1.3);
+    const brake = !!o.brake;
+
+    const W = w * 0.88;             // 리어 범퍼 기준 폭
+    const BW = W * 0.50;            // 반폭
+    const SH = h * 0.56;            // 페렌더 윗선(숄더) 높이
+    const GT = h * 0.80;            // 유리 위쪽 높이
+    const yv = yaw * W * 0.040;     // 요각에 따른 수평 이동
+    ctx.save();
+    ctx.translate(cx, baseY - air * h * 0.05);
+    ctx.rotate(steer * 0.040 + drift * steer * 0.020);
+
+    /* 접지 그림자(부드러운 타원) */
+    const sw = W * (0.58 + air * 0.06), shh = h * (0.070 - air * 0.025);
+    let g = ctx.createRadialGradient(yv * 0.5, -shh * 0.25, 1, yv * 0.5, -shh * 0.25, sw);
+    g.addColorStop(0, 'rgba(0,0,0,0.58)');
+    g.addColorStop(0.55, 'rgba(0,0,0,0.26)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(yv * 0.5, -shh * 0.25, sw, shh * 2.3, 0, 0, Math.PI * 2); ctx.fill();
+
+    /* 휠/타이어(차체 뒤에 숨도록 먼저) */
+    const ww = w * 0.125, wh = h * (0.30 - air * 0.05);
+    for (const s of [-1, 1]) {
+      const x = s * (BW * 0.92 + yv * 0.3) - (s < 0 ? ww : 0);
+      const y = -wh - air * h * 0.04;
+      const wg = ctx.createLinearGradient(x, y, x + ww, 0);
+      wg.addColorStop(0, '#05070a'); wg.addColorStop(0.45, '#1b2028'); wg.addColorStop(1, '#080a0e');
+      ctx.fillStyle = wg;
+      this.roundPath(ctx, x, y, ww, wh, ww * 0.24); ctx.fill();
+      ctx.fillStyle = 'rgba(190,210,240,' + (0.05 + lit * 0.05).toFixed(3) + ')';
+      ctx.fillRect(x + ww * 0.14, y + wh * 0.14, ww * 0.72, wh * 0.09);
+    }
+
+    /* 차체 실루엣 - 페렌더가 불룩 나오는 곡선 */
+    const bodyPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(-BW + yv, -h * 0.040);
+      ctx.bezierCurveTo(-BW - W * 0.014, -SH * 0.52, -BW - W * 0.010, -SH * 0.86, -BW * 0.84, -SH * 0.99);
+      ctx.bezierCurveTo(-BW * 0.46, -SH * 1.07, BW * 0.46, -SH * 1.07, BW * 0.84, -SH * 0.99);
+      ctx.bezierCurveTo(BW + W * 0.010, -SH * 0.86, BW + W * 0.014, -SH * 0.52, BW + yv, -h * 0.040);
+      ctx.bezierCurveTo(BW * 0.55, -h * 0.010, -BW * 0.55, -h * 0.010, -BW + yv, -h * 0.040);
+      ctx.closePath();
+    };
+    const pg = ctx.createLinearGradient(0, -SH * 1.10, 0, 0);
+    pg.addColorStop(0, this.shade(col, 1.30 * lit));
+    pg.addColorStop(0.34, this.shade(col, 1.02));
+    pg.addColorStop(0.66, this.shade(col, 0.74));
+    pg.addColorStop(1, this.shade(col, 0.40));
+    ctx.fillStyle = pg;
+    bodyPath(); ctx.fill();
+
+    /* 차체 안쪽만 잘라 둥글게 표현 */
+    ctx.save();
+    bodyPath(); ctx.clip();
+    const hg = ctx.createLinearGradient(-BW, 0, BW, 0);
+    hg.addColorStop(0, 'rgba(0,0,0,0.60)');
+    hg.addColorStop(0.14, 'rgba(0,0,0,0.02)');
+    hg.addColorStop(0.50, 'rgba(255,255,255,0.06)');
+    hg.addColorStop(0.86, 'rgba(0,0,0,0.02)');
+    hg.addColorStop(1, 'rgba(0,0,0,0.60)');
+    ctx.fillStyle = hg; ctx.fillRect(-W, -h * 1.2, W * 2, h * 1.4);
+    // 캐릭터 라인(가로 반사 띠)
+    const cl = ctx.createLinearGradient(0, -SH * 0.80, 0, -SH * 0.50);
+    cl.addColorStop(0, 'rgba(255,255,255,0)');
+    cl.addColorStop(0.45, 'rgba(255,246,232,' + (0.09 + lit * 0.10).toFixed(3) + ')');
+    cl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = cl; ctx.fillRect(-BW, -SH * 0.80, BW * 2, SH * 0.30);
+    // 루프/숄더 가장자리 림라이트
+    ctx.strokeStyle = 'rgba(215,235,255,' + (0.10 + lit * 0.16).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(1, w * 0.006);
+    ctx.beginPath();
+    ctx.moveTo(-BW * 0.86, -SH * 0.98);
+    ctx.bezierCurveTo(-BW * 0.46, -SH * 1.06, BW * 0.46, -SH * 1.06, BW * 0.86, -SH * 0.98);
+    ctx.stroke();
+    // 페렌더 그늘(휠 아치)
+    for (const s of [-1, 1]) {
+      const ag = ctx.createRadialGradient(s * BW * 0.86, -SH * 0.30, 1, s * BW * 0.86, -SH * 0.30, W * 0.20);
+      ag.addColorStop(0, 'rgba(0,0,0,0.45)'); ag.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = ag;
+      ctx.fillRect(s * BW * 0.86 - W * 0.2, -SH * 0.30 - W * 0.2, W * 0.4, W * 0.4);
+    }
+    ctx.restore();
+
+    /* 리어 글래스 + 루프 */
+    const gwb = BW * 0.70, gwt = BW * 0.52;
+    const yb = -SH * 1.01, yt = -GT;
+    const glass = () => {
+      ctx.beginPath();
+      ctx.moveTo(-gwb + yv * 1.5, yb);
+      ctx.lineTo(-gwt + yv * 1.9, yt + h * 0.015);
+      ctx.quadraticCurveTo(0, yt - h * 0.010, gwt + yv * 1.9, yt + h * 0.015);
+      ctx.lineTo(gwb + yv * 1.5, yb);
+      ctx.closePath();
+    };
+    ctx.fillStyle = this.shade(col, 0.66);
+    ctx.beginPath();
+    ctx.moveTo(-gwb - W * 0.035 + yv * 1.4, yb + h * 0.012);
+    ctx.lineTo(-gwt - W * 0.022 + yv * 1.8, yt - h * 0.012);
+    ctx.quadraticCurveTo(0, yt - h * 0.036, gwt + W * 0.022 + yv * 1.8, yt - h * 0.012);
+    ctx.lineTo(gwb + W * 0.035 + yv * 1.4, yb + h * 0.012);
+    ctx.closePath(); ctx.fill();
+    const gg = ctx.createLinearGradient(0, yt, 0, yb);
+    gg.addColorStop(0, 'rgba(38,52,72,0.95)');
+    gg.addColorStop(0.45, 'rgba(15,21,31,0.96)');
+    gg.addColorStop(1, 'rgba(9,12,18,0.98)');
+    ctx.fillStyle = gg; glass(); ctx.fill();
+    ctx.save(); glass(); ctx.clip();
+    const rf = ctx.createLinearGradient(-gwb, yt, gwb * 0.4, yb);
+    rf.addColorStop(0, 'rgba(150,200,255,0.00)');
+    rf.addColorStop(0.42, 'rgba(160,210,255,' + (0.10 + lit * 0.10).toFixed(3) + ')');
+    rf.addColorStop(0.60, 'rgba(120,170,230,0.03)');
+    rf.addColorStop(1, 'rgba(255,190,120,0.06)');
+    ctx.fillStyle = rf; ctx.fillRect(-gwb, yt - h * 0.05, gwb * 2, (yb - yt) + h * 0.05);
+    ctx.strokeStyle = 'rgba(200,220,245,0.10)'; ctx.lineWidth = Math.max(1, w * 0.004);
+    ctx.beginPath(); ctx.moveTo(-gwb * 0.86, yb - (yb - yt) * 0.30);
+    ctx.lineTo(gwb * 0.90, yb - (yb - yt) * 0.44); ctx.stroke();
+    ctx.restore();
+
+    /* 리어램프: 모서리를 감싸는 형태 + LED 슬랫 + 블룸 */
+    const ly0 = -SH * 0.64, lh = SH * 0.22;
+    for (const s of [-1, 1]) {
+      const x1 = s * BW * 0.28 + yv, x2 = s * BW * 0.99 + yv;
+      ctx.beginPath();
+      ctx.moveTo(x1, ly0);
+      ctx.lineTo(x2 - s * W * 0.02, ly0 - lh * 0.20);
+      ctx.quadraticCurveTo(x2 + s * W * 0.014, ly0 + lh * 0.32, x2 - s * W * 0.012, ly0 + lh);
+      ctx.lineTo(x1, ly0 + lh * 0.90);
+      ctx.closePath();
+      const lg = ctx.createLinearGradient(0, ly0, 0, ly0 + lh);
+      lg.addColorStop(0, brake ? '#ff8078' : '#7d1a26');
+      lg.addColorStop(0.5, brake ? '#ff2f3f' : '#a5202e');
+      lg.addColorStop(1, brake ? '#c01324' : '#59101a');
+      ctx.fillStyle = lg; ctx.fill();
+      const span = Math.abs(x2 - x1);
+      ctx.fillStyle = 'rgba(255,238,238,' + (brake ? 0.52 : 0.20).toFixed(3) + ')';
+      for (let k = 0; k < 3; k++) {
+        ctx.fillRect(Math.min(x1, x2) + span * (0.16 + k * 0.24), ly0 + lh * 0.26, span * 0.10, lh * 0.44);
+      }
+      if (CONFIG.fx.bloom) {
+        ctx.globalAlpha = brake ? 0.50 : 0.20;
+        const bx = (x1 + x2) / 2;
+        const bl = ctx.createRadialGradient(bx, ly0 + lh * 0.5, 1, bx, ly0 + lh * 0.5, lh * 3.2);
+        bl.addColorStop(0, 'rgba(255,62,84,0.92)');
+        bl.addColorStop(1, 'rgba(255,40,70,0)');
+        ctx.fillStyle = bl;
+        ctx.beginPath(); ctx.ellipse(bx, ly0 + lh * 0.5, lh * 3.0, lh * 2.1, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    /* 데크 립 + 번호판 */
+    ctx.fillStyle = 'rgba(0,0,0,0.26)';
+    ctx.fillRect(-BW * 0.34 + yv, -SH * 0.70, BW * 0.68, Math.max(1, h * 0.005));
+    const plw = BW * 0.32, plh = SH * 0.17, ply = -SH * 0.34;
+    ctx.fillStyle = 'rgba(226,234,246,0.82)';
+    this.roundPath(ctx, -plw / 2 + yv, ply, plw, plh, Math.max(1, w * 0.006)); ctx.fill();
+    if (plw > 26) {
+      ctx.fillStyle = 'rgba(26,36,54,0.60)';
+      ctx.font = Math.round(plh * 0.60) + 'px "Malgun Gothic",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(o.plate || 'ND-01', yv, ply + plh * 0.56);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
+
+    /* 하부 범퍼/디퓨저 + 머플러 팁 */
+    const vy = -h * 0.042;
+    ctx.fillStyle = 'rgba(11,14,19,0.94)';
+    ctx.beginPath();
+    ctx.moveTo(-BW * 0.94 + yv, vy); ctx.lineTo(BW * 0.94 + yv, vy);
+    ctx.lineTo(BW * 0.80 + yv, vy - h * 0.078); ctx.lineTo(-BW * 0.80 + yv, vy - h * 0.078);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(150,162,178,0.13)';
+    for (let k = -2; k <= 2; k++) {
+      ctx.fillRect(k * BW * 0.15 - Math.max(0.7, w * 0.004), vy - h * 0.072, Math.max(1.4, w * 0.008), h * 0.064);
+    }
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = '#262b33';
+      ctx.beginPath();
+      ctx.ellipse(s * BW * 0.58 + yv, vy - h * 0.030, Math.max(1.6, w * 0.017), Math.max(1.2, h * 0.021), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(215,228,245,0.20)';
+      ctx.beginPath();
+      ctx.ellipse(s * BW * 0.58 + yv, vy - h * 0.038, Math.max(1, w * 0.012), Math.max(0.7, h * 0.010), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    /* 리어 스포일러 */
+    if (o.wing !== false) {
+      const wy = -SH * 1.12, span2 = BW * 1.04, th2 = Math.max(1.6, h * 0.028);
+      ctx.fillStyle = 'rgba(14,17,22,0.95)';
+      for (const s of [-1, 1]) {
+        ctx.fillRect(s * BW * 0.64 + yv - Math.max(1, w * 0.008), wy, Math.max(2, w * 0.016), SH * 0.17);
+      }
+      const wg2 = ctx.createLinearGradient(0, wy - th2, 0, wy + th2);
+      wg2.addColorStop(0, 'rgba(126,140,160,0.92)');
+      wg2.addColorStop(0.45, 'rgba(26,30,38,0.98)');
+      wg2.addColorStop(1, 'rgba(9,11,15,0.98)');
+      ctx.fillStyle = wg2;
+      this.roundPath(ctx, -span2 + yv * 1.6, wy - th2, span2 * 2, th2 * 2, th2 * 0.6); ctx.fill();
+    }
+
+    /* 손상: 찌그러짐 + 스크래치 + 램프 파손 */
+    if (dmg > 0.05) {
+      const rnd = utils.mulberry32(777);
+      ctx.save(); bodyPath(); ctx.clip();
+      for (let i = 0; i < Math.floor(1 + dmg * 7); i++) {
+        const x0 = (rnd() - 0.5) * BW * 1.7, y0 = -SH * (0.12 + rnd() * 0.86);
+        const rr = W * (0.035 + rnd() * 0.06) * (0.6 + dmg);
+        const dg = ctx.createRadialGradient(x0, y0, 1, x0, y0, rr);
+        dg.addColorStop(0, 'rgba(9,11,15,' + (0.28 + dmg * 0.32).toFixed(3) + ')');
+        dg.addColorStop(0.55, 'rgba(22,26,32,0.16)');
+        dg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = dg;
+        ctx.beginPath(); ctx.ellipse(x0, y0, rr, rr * 0.62, rnd() * 3, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(16,18,23,' + (0.22 + dmg * 0.40).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, w * 0.009);
+      for (let i = 0; i < Math.floor(dmg * 10); i++) {
+        const x0 = (rnd() - 0.5) * BW * 1.8, y0 = -SH * (0.10 + rnd() * 0.88);
+        ctx.beginPath(); ctx.moveTo(x0, y0);
+        ctx.lineTo(x0 + (rnd() - 0.5) * BW * 0.7, y0 + (rnd() - 0.5) * SH * 0.34);
+        ctx.stroke();
+      }
+      ctx.restore();
+      if (dmg > 0.55) {
+        ctx.fillStyle = 'rgba(7,9,13,0.72)';
+        ctx.fillRect(-BW * 0.99 + yv, ly0 - lh * 0.2, BW * 0.34, lh * 1.2);
+      }
+    }
+
+    /* 니트로 불꽃(머플러 팁에서) */
+    if (o.boost) {
+      const fl = h * (0.13 + Math.random() * 0.13);
+      for (const s of [-1, 1]) {
+        const fx = s * BW * 0.58 + yv;
+        const fg = ctx.createLinearGradient(fx, -h * 0.05, fx, -h * 0.05 + fl);
+        fg.addColorStop(0, 'rgba(255,246,212,0.95)');
+        fg.addColorStop(0.35, 'rgba(255,150,60,0.70)');
+        fg.addColorStop(1, 'rgba(120,60,255,0)');
+        ctx.fillStyle = fg;
+        ctx.beginPath();
+        ctx.moveTo(fx - w * 0.034, -h * 0.048);
+        ctx.lineTo(fx + w * 0.034, -h * 0.048);
+        ctx.lineTo(fx, -h * 0.048 + fl);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.restore();
+  },
+
+  /* 보닛(1인칭) 뷰: 화면 아래에 걸리는 후드 + 미러 + 와이퍼 */
+  carHood(ctx, cx, baseY, w, h, opt) {
+    const o = opt || {};
+    const steer = utils.clamp(o.steer || 0, -1, 1);
+    const drift = utils.clamp(o.drift || 0, 0, 1);
+    const col = o.color || '#c81f3a';
+    const dmg = utils.clamp(o.dmg || 0, 0, 1);
+    const lit = utils.clamp(o.light === undefined ? 0.9 : o.light, 0.3, 1.3);
+    const hw = w * 0.66, hh = h;
+    ctx.save();
+    ctx.translate(cx, baseY);
+    ctx.rotate(steer * (0.014 + drift * 0.010));
+
+    /* 후드 실루엣 - 어깨가 불룩한 곡선 사다리꼴 */
+    const hood = () => {
+      ctx.beginPath();
+      ctx.moveTo(-hw * 0.60, -hh * 0.34);
+      ctx.bezierCurveTo(-hw * 0.80, -hh * 0.20, -hw * 0.95, -hh * 0.08, -hw, 0);
+      ctx.lineTo(hw, 0);
+      ctx.bezierCurveTo(hw * 0.95, -hh * 0.08, hw * 0.80, -hh * 0.20, hw * 0.60, -hh * 0.34);
+      ctx.bezierCurveTo(hw * 0.24, -hh * 0.42, -hw * 0.24, -hh * 0.42, -hw * 0.60, -hh * 0.34);
+      ctx.closePath();
+    };
+    const gr = ctx.createLinearGradient(-hw, 0, hw, 0);
+    gr.addColorStop(0, this.shade(col, 0.34 * lit));
+    gr.addColorStop(0.16, this.shade(col, 0.86));
+    gr.addColorStop(0.50, this.shade(col, 1.16 * lit));
+    gr.addColorStop(0.84, this.shade(col, 0.86));
+    gr.addColorStop(1, this.shade(col, 0.34 * lit));
+    ctx.fillStyle = gr;
+    hood(); ctx.fill();
+
+    /* 후드 안쪽 디테일(클립으로 가장자리 유지) */
+    ctx.save();
+    hood(); ctx.clip();
+    const dome = ctx.createLinearGradient(-hw * 0.30, -hh * 0.42, hw * 0.30, -hh * 0.02);
+    dome.addColorStop(0, 'rgba(255,255,255,' + (0.05 + lit * 0.07).toFixed(3) + ')');
+    dome.addColorStop(0.5, 'rgba(255,255,255,0.02)');
+    dome.addColorStop(1, 'rgba(0,0,0,0.22)');
+    ctx.fillStyle = dome;
+    ctx.beginPath();
+    ctx.moveTo(-hw * 0.26, -hh * 0.36);
+    ctx.bezierCurveTo(-hw * 0.30, -hh * 0.20, -hw * 0.28, -hh * 0.06, -hw * 0.22, 0);
+    ctx.lineTo(hw * 0.22, 0);
+    ctx.bezierCurveTo(hw * 0.28, -hh * 0.06, hw * 0.30, -hh * 0.20, hw * 0.26, -hh * 0.36);
+    ctx.bezierCurveTo(hw * 0.10, -hh * 0.40, -hw * 0.10, -hh * 0.40, -hw * 0.26, -hh * 0.36);
+    ctx.closePath(); ctx.fill();
+    const rg = ctx.createLinearGradient(-hw, -hh * 0.40, hw, -hh * 0.02);
+    rg.addColorStop(0, 'rgba(255,255,255,0)');
+    rg.addColorStop(0.34, 'rgba(150,200,255,' + (0.07 + lit * 0.10).toFixed(3) + ')');
+    rg.addColorStop(0.58, 'rgba(255,255,255,0.02)');
+    rg.addColorStop(0.80, 'rgba(255,190,130,0.06)');
+    rg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(-hw, -hh * 0.40, hw * 2, hh * 0.26);
+    ctx.strokeStyle = 'rgba(220,236,255,' + (0.10 + lit * 0.14).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(1, w * 0.005);
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * hw * 0.62, -hh * 0.335);
+      ctx.bezierCurveTo(s * hw * 0.86, -hh * 0.19, s * hw * 0.96, -hh * 0.07, s * hw, -hh * 0.005);
+      ctx.stroke();
+    }
+    const vw = hw * 0.11, vh = hh * 0.030;
+    for (const s of [-1, 1]) {
+      for (let k = 0; k < 3; k++) {
+        const vx = s * hw * 0.47 - (s < 0 ? vw : 0);
+        const vy = -hh * (0.250 - k * 0.052);
+        const vg = ctx.createLinearGradient(0, vy, 0, vy + vh);
+        vg.addColorStop(0, 'rgba(6,8,12,0.80)');
+        vg.addColorStop(1, 'rgba(120,140,165,0.16)');
+        ctx.fillStyle = vg;
+        ctx.fillRect(vx, vy, vw, vh);
+      }
+    }
+    ctx.restore();
+
+    /* 패널 이음선 + 앞모서리 그늘 */
+    ctx.strokeStyle = 'rgba(8,10,14,0.55)';
+    ctx.lineWidth = Math.max(1, w * 0.0035);
+    ctx.beginPath();
+    ctx.moveTo(-hw * 0.62, -hh * 0.345);
+    ctx.bezierCurveTo(-hw * 0.30, -hh * 0.415, hw * 0.30, -hh * 0.415, hw * 0.62, -hh * 0.345);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.beginPath();
+    ctx.moveTo(-hw, 0); ctx.lineTo(hw, 0);
+    ctx.lineTo(hw * 0.94, -hh * 0.055); ctx.lineTo(-hw * 0.94, -hh * 0.055);
+    ctx.closePath(); ctx.fill();
+
+    /* 와이퍼 */
+    ctx.strokeStyle = 'rgba(10,13,18,0.75)';
+    ctx.lineWidth = Math.max(1.2, w * 0.006);
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * hw * 0.30, -hh * 0.335);
+      ctx.lineTo(s * hw * 0.13, -hh * 0.470);
+      ctx.stroke();
+    }
+
+    /* 사이드 미러(날렵한 케이스 + 거울면 반사) */
+    for (const s of [-1, 1]) {
+      const mx = s * hw * 0.92, my = -hh * 0.40;
+      const mw = hw * 0.15, mh = hh * 0.075;
+      ctx.fillStyle = 'rgba(10,13,19,0.92)';
+      ctx.beginPath();
+      ctx.moveTo(mx - s * mw * 0.10, my + mh * 0.10);
+      ctx.lineTo(mx + s * mw * 0.92, my - mh * 0.20);
+      ctx.lineTo(mx + s * mw * 1.00, my + mh * 0.55);
+      ctx.lineTo(mx - s * mw * 0.20, my + mh * 0.95);
+      ctx.closePath(); ctx.fill();
+      const mg = ctx.createLinearGradient(mx, my - mh * 0.2, mx, my + mh);
+      mg.addColorStop(0, 'rgba(120,170,225,' + (0.30 + lit * 0.22).toFixed(3) + ')');
+      mg.addColorStop(0.60, 'rgba(30,44,64,0.70)');
+      mg.addColorStop(1, 'rgba(12,16,22,0.80)');
+      ctx.fillStyle = mg;
+      ctx.beginPath();
+      ctx.moveTo(mx + s * mw * 0.08, my + mh * 0.16);
+      ctx.lineTo(mx + s * mw * 0.86, my - mh * 0.06);
+      ctx.lineTo(mx + s * mw * 0.92, my + mh * 0.46);
+      ctx.lineTo(mx + s * mw * 0.02, my + mh * 0.74);
+      ctx.closePath(); ctx.fill();
+    }
+
+    /* 손상(후드 찌그러짐/기스) */
+    if (dmg > 0.05) {
+      const rnd = utils.mulberry32(4242);
+      ctx.save(); hood(); ctx.clip();
+      for (let i = 0; i < Math.floor(1 + dmg * 6); i++) {
+        const x0 = (rnd() - 0.5) * hw * 1.7, y0 = -hh * (0.04 + rnd() * 0.30);
+        const rr = hw * (0.05 + rnd() * 0.07) * (0.6 + dmg);
+        const dg = ctx.createRadialGradient(x0, y0, 1, x0, y0, rr);
+        dg.addColorStop(0, 'rgba(8,10,14,' + (0.30 + dmg * 0.30).toFixed(3) + ')');
+        dg.addColorStop(0.55, 'rgba(20,24,30,0.14)');
+        dg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = dg;
+        ctx.beginPath(); ctx.ellipse(x0, y0, rr, rr * 0.55, rnd() * 3, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(14,16,21,' + (0.20 + dmg * 0.35).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, w * 0.008);
+      for (let i = 0; i < Math.floor(dmg * 9); i++) {
+        const x0 = (rnd() - 0.5) * hw * 1.8, y0 = -hh * (0.03 + rnd() * 0.32);
+        ctx.beginPath(); ctx.moveTo(x0, y0);
+        ctx.lineTo(x0 + (rnd() - 0.5) * hw * 0.5, y0 + (rnd() - 0.5) * hh * 0.12);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  },
+
+  roundPath(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  },
+
+  shade(hex, k) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!m) return hex;
+    const f = (v) => utils.clamp(Math.round(v * k), 0, 255);
+    return 'rgb(' + f(parseInt(m[1], 16)) + ',' + f(parseInt(m[2], 16)) + ',' + f(parseInt(m[3], 16)) + ')';
+  },
+
+  glowSprite(ctx, cx, cy, size, alpha) {
+    if (!this.lightGlow) return;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(this.lightGlow, cx - size / 2, cy - size / 2, size, size);
+    ctx.globalAlpha = 1;
+  }
+};
+
+/* ===== 05_sound.js ===== */
+/* ==========================================================================
+   Sound - 외부 사운드(assets/game/sfx,music) 재생 + WebAudio 합성 폴백
+   정책: 외부 에셋이 로드됐으면 그것을 쓰고, 없으면 같은 이름의 합성 소리를 낸다.
+   file:// 제약 때문에 HTMLAudioElement 를 WebAudio 그래프에 연결하지 않는다.
+   ========================================================================== */
+const Sound = {
+  ctx: null, master: null, sfxGain: null, ready: false, unlocked: false,
+  eng: null,            // 엔진 신디사이즈 노드 묶음
+  engExt: null,         // 외부 엔진 루프 요소 상태
+  skid: null,           // 타이어 스키드 루프
+  musicCur: null, musicId: '',
+  noiseBuf: null,
+
+  init() {
+    this.ext = { eng1: Assets.audio('eng1'), eng2: Assets.audio('eng2'), eng3: Assets.audio('eng3') };
+    this.sfxExt = {
+      crash1: Assets.audio('crash1'), crash2: Assets.audio('crash2'),
+      boost_s: Assets.audio('boost_s'), boost_l: Assets.audio('boost_l'), boost_e: Assets.audio('boost_e')
+    };
+  },
+
+  // 사용자 제스처 이후에 AudioContext 를 만든다(자동재생 정책)
+  ensure() {
+    if (this.ready) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try {
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = CONFIG.audio.master;
+      this.master.connect(this.ctx.destination);
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.value = CONFIG.audio.sfx;
+      this.sfxGain.connect(this.master);
+
+      const len = Math.floor(this.ctx.sampleRate * 1.2);
+      this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = this.noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+
+      this.ready = true;
+      return true;
+    } catch (e) { this.ready = false; return false; }
+  },
+
+  unlock() {
+    this.unlocked = true;
+    if (this.ensure() && this.ctx.state === 'suspended') this.ctx.resume();
+    if (CONFIG.audio.musicOn) this.music.play();
+  },
+
+  setMaster(v) { CONFIG.audio.master = v; if (this.master) this.master.gain.value = v; },
+
+  /* ------------------------------------------------------------- engine -- */
+  startEngine() {
+    if (!this.ensure()) return;
+    this.stopEngine();
+    // 외부 루프(eng1/2/3)가 있으면 요소만 시동(볼륨/피치로 rpm 표현)
+    this.engExt = null;
+    const a = this.ext.eng2 || this.ext.eng1 || this.ext.eng3;
+    if (a) {
+      try {
+        a.loop = true; a.volume = 0; a.currentTime = 0;
+        const pr = a.play();
+        if (pr && pr.catch) pr.catch(() => {});
+        this.engExt = { el: a, which: a === this.ext.eng2 ? 2 : (a === this.ext.eng1 ? 1 : 3), cur: 0 };
+      } catch (e) { this.engExt = null; }
+    }
+    if (!this.engExt) this.buildEngineSynth();
+  },
+
+  buildEngineSynth() {
+    const c = this.ctx;
+    const g = c.createGain(); g.gain.value = 0;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 6;
+    const o1 = c.createOscillator(); o1.type = 'sawtooth';
+    const o2 = c.createOscillator(); o2.type = 'square'; o2.frequency.value = 0;
+    const g2 = c.createGain(); g2.gain.value = 0.45;
+    const sub = c.createOscillator(); sub.type = 'triangle';
+    const gs = c.createGain(); gs.gain.value = 0.35;
+    o1.connect(lp); o2.connect(g2); g2.connect(lp); sub.connect(gs); gs.connect(lp);
+    lp.connect(g); g.connect(this.sfxGain);
+    const t = c.currentTime;
+    o1.start(t); o2.start(t); sub.start(t);
+    // 흡기 소음
+    const n = c.createBufferSource(); n.buffer = this.noiseBuf; n.loop = true;
+    const nf = c.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 1400; nf.Q.value = 0.8;
+    const ng = c.createGain(); ng.gain.value = 0;
+    n.connect(nf); nf.connect(ng); ng.connect(this.sfxGain); n.start(t);
+    this.eng = { o1, o2, sub, g, lp, n, ng };
+  },
+
+  stopEngine() {
+    if (this.eng) {
+      try { this.eng.o1.stop(); this.eng.o2.stop(); this.eng.sub.stop(); this.eng.n.stop(); } catch (e) {}
+      try { this.eng.g.disconnect(); } catch (e) {}
+      this.eng = null;
+    }
+    if (this.engExt) { try { this.engExt.el.pause(); } catch (e) {} this.engExt = null; }
+  },
+
+  /* rpm: 0..1(클러치/기어 반영값), load: 0..1 가속 pedal, on: 시동 여부 */
+  engine(rpm, load, boost) {
+    if (!this.eng) return;
+    const target = CONFIG.audio.engine * (0.30 + 0.70 * rpm) * (boost ? 1.25 : 1);
+    if (this.engExt) {
+      const e = this.engExt;
+      // rpm 구간별로 다른 외부 루프로 갈아타기(단순 페이드)
+      const want = rpm < 0.34 ? (this.ext.eng1 || this.ext.eng2 || this.ext.eng3)
+                 : rpm < 0.72 ? (this.ext.eng2 || this.ext.eng1 || this.ext.eng3)
+                              : (this.ext.eng3 || this.ext.eng2 || this.ext.eng1);
+      if (want && want !== e.el) {
+        try { want.loop = true; want.currentTime = 0; want.volume = 0; const pr = want.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (err) {}
+        try { e.el.volume = 0; e.el.pause(); } catch (err) {}
+        e.el = want;
+      }
+      e.cur = utils.lerp(e.cur, utils.clamp(target, 0, 1), 0.15);
+      try { e.el.volume = e.cur * 0.9; e.el.playbackRate = utils.clamp(0.75 + rpm * 0.9, 0.6, 1.9); } catch (err) {}
+      return;
+    }
+    const g = this.eng.g, o1 = this.eng.o1, o2 = this.eng.o2, sub = this.eng.sub;
+    const f = 46 + rpm * 190;
+    if (this.ctx) {
+      const t = this.ctx.currentTime;
+      g.gain.setTargetAtTime(target, t, 0.05);
+      o1.frequency.setTargetAtTime(f, t, 0.04);
+      o2.frequency.setTargetAtTime(f * 1.005, t, 0.04);
+      sub.frequency.setTargetAtTime(f * 0.5, t, 0.05);
+      this.eng.lp.frequency.setTargetAtTime(500 + rpm * 2600 + load * 900, t, 0.06);
+      this.eng.ng.gain.setTargetAtTime(0.012 + rpm * 0.05, t, 0.1);
+    }
+  },
+
+  /* --------------------------------------------------------- tire skid -- */
+  skidNode: null,
+  skid(level) {
+    if (!this.ensure()) return;
+    if (!this.skidNode) {
+      const c = this.ctx;
+      const n = c.createBufferSource(); n.buffer = this.noiseBuf; n.loop = true;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2100; bp.Q.value = 3.2;
+      const g = c.createGain(); g.gain.value = 0;
+      n.connect(bp); bp.connect(g); g.connect(this.sfxGain); n.start();
+      this.skidNode = { n: n, g: g, bp: bp };
+    }
+    const v = utils.clamp(level, 0, 1) * 0.16;
+    if (this.ctx) this.skidNode.g.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
+  },
+
+  /* --------------------------------------------------------------- sfx -- */
+  sfx(name) {
+    const el = this.sfxExt && this.sfxExt[name];
+    if (el) { try { el.currentTime = 0; el.volume = CONFIG.audio.sfx; const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} return; }
+    if (!this.ensure()) return;
+    const c = this.ctx, t = c.currentTime;
+    if (name === 'crash1' || name === 'crash2') {
+      const n = c.createBufferSource(); n.buffer = this.noiseBuf;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass';
+      bp.frequency.value = name === 'crash1' ? 850 : 260; bp.Q.value = 0.9;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      n.connect(bp); bp.connect(g); g.connect(this.sfxGain); n.start(t); n.stop(t + 0.5);
+      const o = c.createOscillator(); o.type = 'triangle';
+      o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.3);
+      const og = c.createGain(); og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+      o.connect(og); og.connect(this.sfxGain); o.start(t); o.stop(t + 0.35);
+    } else if (name === 'boost_s') {
+      const o = c.createOscillator(); o.type = 'sawtooth';
+      o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(1500, t + 0.35);
+      const g = c.createGain(); g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.35, t + 0.08); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 220;
+      o.connect(hp); hp.connect(g); g.connect(this.sfxGain); o.start(t); o.stop(t + 0.55);
+    } else if (name === 'jump') {
+      // 점프: 올라가는 휘파람 + 짧은 둔탁한 소리
+      const o = c.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(760, t + 0.28);
+      const og = c.createGain(); og.gain.setValueAtTime(0.0001, t);
+      og.gain.exponentialRampToValueAtTime(0.28, t + 0.05); og.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+      o.connect(og); og.connect(this.sfxGain); o.start(t); o.stop(t + 0.36);
+      const n = c.createBufferSource(); n.buffer = this.noiseBuf;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(400, t); bp.frequency.exponentialRampToValueAtTime(1800, t + 0.25);
+      bp.Q.value = 1.4;
+      const ng = c.createGain(); ng.gain.setValueAtTime(0.35, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      n.connect(bp); bp.connect(ng); ng.connect(this.sfxGain); n.start(t); n.stop(t + 0.32);
+    }
+  },
+
+  /* -------------------------------------------------------------- music -- */
+  music: {
+    play(id) {
+      const S = Sound;
+      if (!S.ensure()) return;
+      const want = id || (Sound.scene === 'race' ? 'mus_race' : 'mus_cruise');
+      if (S.musicId === want && S.musicCur) return;
+      const el = Assets.audio(want) || Assets.audio('mus_cruise') || Assets.audio('mus_menu');
+      if (S.musicCur) { try { S.musicCur.pause(); } catch (e) {} }
+      if (el) {
+        try {
+          el.loop = true; el.currentTime = 0; el.volume = CONFIG.audio.music;
+          const p = el.play(); if (p && p.catch) p.catch(() => {});
+          S.musicCur = el; S.musicId = want; S.jamStop(); return;
+        } catch (e) {}
+      }
+      S.jamStart();
+    },
+    stop() {
+      const S = Sound;
+      if (S.musicCur) { try { S.musicCur.pause(); } catch (e) {} S.musicCur = null; }
+      S.jamStop(); S.musicId = '';
+    },
+    setVol(v) {
+      CONFIG.audio.music = v;
+      if (Sound.musicCur) { try { Sound.musicCur.volume = v; } catch (e) {} }
+      if (Sound.jam && Sound.jam.gain) Sound.jam.gain.gain.value = v * 0.5;
+    }
+  },
+
+  /* 외부 음악이 없을 때 쓰는 간단한 절차적 루프(베이스+아르페지오) */
+  jam: null,
+  jamStart() {
+    if (!this.ready || this.jam) return;
+    const c = this.ctx;
+    const g = c.createGain(); g.gain.value = CONFIG.audio.music * 0.5;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+    g.connect(lp); lp.connect(this.master);
+    const scale = [55, 65.4, 73.4, 87.3, 98, 110, 130.8, 146.8];
+    const st = c.currentTime + 0.1;
+    const notes = [];
+    for (let b = 0; b < 32; b++) {
+      const t = st + b * 0.25;
+      const bass = scale[[0, 0, 3, 2][b % 4]];
+      const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = bass;
+      const og = c.createGain();
+      og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
+      og.gain.exponentialRampToValueAtTime(0.001, t + 0.23);
+      o.connect(og); og.connect(g); o.start(t); o.stop(t + 0.26); notes.push(o);
+      if (b % 2 === 0) {
+        const a = c.createOscillator(); a.type = 'triangle';
+        a.frequency.value = bass * 4 * (1 + (b % 8) / 12);
+        const ag = c.createGain();
+        ag.gain.setValueAtTime(0.0001, t); ag.gain.exponentialRampToValueAtTime(0.22, t + 0.015);
+        ag.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        a.connect(ag); ag.connect(g); a.start(t); a.stop(t + 0.22); notes.push(a);
+      }
+    }
+    this.jam = { g, notes, next: st + 8 };
+    this.jamTimer = setInterval(() => {
+      if (!this.jam || !this.ready) return;
+      if (this.ctx && this.jam.next < this.ctx.currentTime + 4) this.jamStart0(this.jam.next);
+    }, 1000);
+  },
+  jamStart0(at) {
+    const j = this.jam; if (!j) return;
+    const c = this.ctx, scale = [55, 65.4, 73.4, 87.3, 98, 110, 130.8, 146.8];
+    for (let b = 0; b < 32; b++) {
+      const t = at + b * 0.25;
+      const bass = scale[[0, 0, 3, 2][b % 4]];
+      const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = bass;
+      const og = c.createGain();
+      og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
+      og.gain.exponentialRampToValueAtTime(0.001, t + 0.23);
+      o.connect(og); og.connect(j.g); o.start(t); o.stop(t + 0.26); j.notes.push(o);
+    }
+    j.next = at + 8;
+  },
+  jamStop() {
+    if (this.jamTimer) { clearInterval(this.jamTimer); this.jamTimer = null; }
+    if (this.jam) {
+      for (const o of this.jam.notes) { try { o.stop(); } catch (e) {} }
+      try { this.jam.g.disconnect(); } catch (e) {}
+      this.jam = null;
+    }
+  },
+
+  toggleMusic() {
+    CONFIG.audio.musicOn = !CONFIG.audio.musicOn;
+    if (CONFIG.audio.musicOn) this.music.play(); else this.music.stop();
+    Save.put();
+    return CONFIG.audio.musicOn;
+  }
+};
+
+/* ===== 06_road.js ===== */
+/* ==========================================================================
+   Road - 세그먼트 기반 코스 정의(커브/언듈레이션/가로등/소품/구역)
+   세그먼트 = segLen 길이의 도로 조각. 커브는 curve 값의 누적(OutRun 방식).
+   ========================================================================== */
+const Road = {
+  segments: [],
+  trackLength: 0,
+  seed: 0,
+  zones: [],          // 구역(디스트릭트) 정보: {from,to,theme,name}
+  lampList: [],       // {segIndex, side, z} - 조명 계산용 인덱스
+
+  /* --------------------------------------------------------- 기본 추가 -- */
+  addSegment(curve, y) {
+    const n = this.segments.length;
+    const light = Math.floor(n / CONFIG.road.rumbleLen) % 2 === 0;
+    this.segments.push({
+      index: n,
+      p1: { world: { x: 0, y: this.lastY(), z: n * CONFIG.road.segLen }, camera: {}, screen: {} },
+      p2: { world: { x: 0, y: y, z: (n + 1) * CONFIG.road.segLen }, camera: {}, screen: {} },
+      curve: curve,
+      sprites: [],
+      cars: [],
+      surface: 'asphalt',
+      hazard: null,
+      light: light,
+      color: light ? 'light' : 'dark',
+      lit: 1, fog: 0
+    });
+  },
+  lastY() {
+    const s = this.segments.length - 1;
+    return s < 0 ? 0 : this.segments[s].p2.world.y;
+  },
+
+  addRoad(enter, hold, leave, curve, y) {
+    const total = enter + hold + leave;
+    const startY = this.lastY();
+    const endY = startY + (y || 0) * CONFIG.road.segLen;
+    const n = 0;
+    for (let i = 0; i < enter; i++)
+      this.addSegment(utils.easeIn(0, curve, i / enter), utils.easeInOut(startY, endY, i / total));
+    for (let i = 0; i < hold; i++)
+      this.addSegment(curve, utils.easeInOut(startY, endY, (enter + i) / total));
+    for (let i = 0; i < leave; i++)
+      this.addSegment(utils.easeInOut(curve, 0, i / leave), utils.easeInOut(startY, endY, (enter + hold + i) / total));
+  },
+
+  addStraight(num) { this.addRoad(num || ROAD.LEN.MEDIUM, num || ROAD.LEN.MEDIUM, num || ROAD.LEN.MEDIUM, 0, 0); },
+  addCurve(num, curve, height) {
+    this.addRoad(num || ROAD.LEN.MEDIUM, num || ROAD.LEN.MEDIUM, num || ROAD.LEN.MEDIUM,
+      curve || ROAD.CURVE.MEDIUM, height || ROAD.HILL.NONE);
+  },
+  addHill(num, height) {
+    this.addRoad(num || ROAD.LEN.MEDIUM, num || ROAD.LEN.MEDIUM, num || ROAD.LEN.MEDIUM, 0, height || ROAD.HILL.MEDIUM);
+  },
+  addLowRollingHills(num, height) {
+    const n = num || ROAD.LEN.SHORT, h = height === undefined ? ROAD.HILL.LOW : height;
+    this.addRoad(n, n, n, 0, h / 2);
+    this.addRoad(n, n, n, 0, -h);
+    this.addRoad(n, n, n, ROAD.CURVE.EASY, h);
+    this.addRoad(n, n, n, 0, 0);
+    this.addRoad(n, n, n, -ROAD.CURVE.EASY, h / 2);
+    this.addRoad(n, n, n, 0, 0);
+  },
+  addSCurves() {
+    this.addRoad(ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
+    this.addRoad(ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.MEDIUM);
+    this.addRoad(ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, ROAD.CURVE.EASY, -ROAD.HILL.LOW);
+    this.addRoad(ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.MEDIUM);
+    this.addRoad(ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, ROAD.LEN.MEDIUM, -ROAD.CURVE.MEDIUM, -ROAD.HILL.MEDIUM);
+  },
+  addBumps() {
+    const seq = [5, -2, -5, 8, 5, -7, 5, -2];
+    for (const v of seq) this.addRoad(10, 10, 10, 0, v);
+  },
+  addDownhillToEnd(num) {
+    const n = num || 200;
+    this.addRoad(n, n, n, -ROAD.CURVE.EASY, -this.lastY() / CONFIG.road.segLen);
+  },
+
+  /* ------------------------------------------------------------- 생성 -- */
+  clear() { this.segments = []; this.zones = []; this.lampList = []; },
+
+  resetSprites() {
+    for (const s of this.segments) { s.sprites = []; }
+    this.lampList = [];
+  },
+
+  build(seed) {
+    this.seed = seed >>> 0;
+    const rnd = utils.mulberry32(this.seed);
+    this.clear();
+
+    // 도시 순환 코스: 직선-커브-언듈레이션- 헤어핀Mix 를 섞어 반복
+    this.addStraight(ROAD.LEN.SHORT);
+    this.addLowRollingHills();
+    this.addSCurves();
+    this.addCurve(ROAD.LEN.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.LOW);
+    this.addStraight(70);
+    this.addBumps();
+    this.addLowRollingHills();
+    this.addCurve(ROAD.LEN.LONG, ROAD.CURVE.MEDIUM, ROAD.HILL.MEDIUM);
+    this.addSCurves();
+    this.addHill(ROAD.LEN.MEDIUM, ROAD.HILL.HIGH);
+    this.addStraight(ROAD.LEN.LONG);
+    this.addSCurves();
+    this.addCurve(ROAD.LEN.MEDIUM, -ROAD.CURVE.MEDIUM, -ROAD.HILL.LOW);
+    this.addBumps();
+    this.addCurve(ROAD.LEN.LONG, -ROAD.CURVE.MEDIUM, ROAD.HILL.MEDIUM);
+    this.addStraight(ROAD.LEN.MEDIUM);
+    this.addSCurves();
+    this.addDownhillToEnd(120);
+
+    this.trackLength = this.segments.length * CONFIG.road.segLen;
+    this.makeZones(rnd);
+    this.decorate(rnd);
+    this.placeHazards(rnd);
+    return this;
+  },
+
+  makeZones(rnd) {
+    const themes = ['downtown', 'industrial', 'riverside', 'old_town', 'suburb'];
+    const names = {
+      downtown: '다운타운', industrial: '공업지대', riverside: '강변도로',
+      old_town: '구시가', suburb: '외곽'
+    };
+    let at = 0;
+    while (at < this.segments.length) {
+      const len = 260 + Math.floor(rnd() * 320);
+      const theme = themes[Math.floor(rnd() * themes.length)];
+      this.zones.push({ from: at, to: Math.min(this.segments.length, at + len), theme: theme, name: names[theme] });
+      at += len;
+    }
+  },
+  zoneOf(i) {
+    for (const z of this.zones) if (i >= z.from && i < z.to) return z;
+    return this.zones[this.zones.length - 1];
+  },
+
+  /* 소품 배치: 가로등은 좌우 교대로 일정 간격, 그 밖에 구역별 장식품
+     offset 단위는 '도로 절반 폭' 배수(1.0 = 노면 가장자리) */
+  decorate(rnd) {
+    this.resetSprites();
+    const spacing = CONFIG.lighting.lampSpacing;
+    const RW = CONFIG.road.width;
+    const RAIL = CONFIG.road.railLimit;   // 가드레일 내측 한계
+    const IN = RAIL - 0.04;               // 가드레일 안쪽 어깨(장애물 배치 가능 영역)
+
+    const push = (seg, kind, offset, w, h, seed, solid) => {
+      const s = seg.sprites;
+      s.push({
+        kind: kind, offset: offset, w: w, h: h, seed: seed | 0,
+        solid: !!solid, hitW: w / RW
+      });
+    };
+
+    for (const z of this.zones) {
+      const th = z.theme;
+      const lampGap = th === 'suburb' ? spacing * 2 : (th === 'downtown' ? Math.max(4, spacing - 3) : spacing);
+      const bldgDeep = th === 'downtown' ? 3 : th === 'industrial' ? 2 : th === 'old_town' ? 2 : 1;
+      const bldgScale = th === 'downtown' ? 1.45 : th === 'suburb' ? 0.62 : 1.0;
+      const bldgChance = th === 'industrial' ? 0.55 : 0.85;
+
+      for (let i = z.from; i < z.to; i++) {
+        const seg = this.segments[i];
+        const side = (Math.floor(i / lampGap) % 2) ? 1 : -1;
+        const safeStart = i < 45;   // 스타트 라인 근처에는 장애물을 두지 않는다
+
+        // 가로등: 가드레일 바깥(도달할 수 없지만 충돌 판정은 유지)
+        if (i % lampGap === 0) {
+          const off = side * (RAIL + (th === 'downtown' ? 0.20 : 0.34));
+          push(seg, 'streetlight', off, PROP_SIZE.streetlight[0], PROP_SIZE.streetlight[1], i * 7 + (side > 0 ? 1 : 2), true);
+          this.lampList.push({ i: i, side: side, z: i * CONFIG.road.segLen, off: off });
+        }
+
+        // 건물 블록: 가드레일 바깥쪽에만 배치(주행과 무관한 배경)
+        if (i % 6 === 0 && rnd() < bldgChance) {
+          let edge = RAIL + 0.55;
+          for (let d = 0; d < bldgDeep; d++) {
+            const bs = 1 - d * 0.14;
+            const w = PROP_SIZE.bldg[0] * bldgScale * bs * (0.8 + rnd() * 0.7);
+            const h = PROP_SIZE.bldg[1] * bldgScale * bs * (0.5 + rnd() * 0.95);
+            const half = (w / 2) / RW;
+            const off = side * (edge + half + rnd() * 0.3);
+            push(seg, d === 0 ? 'bldg' : 'bldg_far', off, w, h, i * 31 + d * 17, d === 0);
+            edge = off + half * side * 0.2;
+          }
+        }
+
+        // 구역별 소품(가드레일 안쪽 어깨 = 실제로 부딪힐 수 있는 장애물)
+        if (th === 'riverside' && i % 9 === 0 && rnd() < 0.7) {
+          push(seg, 'tree', -side * (RAIL + 0.10 + rnd() * 0.06), PROP_SIZE.tree[0], PROP_SIZE.tree[1], i, true);
+        }
+        if (th === 'suburb' && !safeStart && i % 11 === 0 && rnd() < 0.55) {
+          push(seg, 'tree', side * (IN + 0.02 + rnd() * 0.06), PROP_SIZE.tree[0], PROP_SIZE.tree[1], i, true);
+        }
+        if (th === 'industrial' && !safeStart && i % 17 === 0 && rnd() < 0.6) {
+          const k = rnd() < 0.5 ? 'barrel' : 'rock';
+          push(seg, k, side * (IN - 0.06 + rnd() * 0.10), PROP_SIZE[k][0], PROP_SIZE[k][1], i, true);
+        }
+        // 커브 구간 안전물(아웃코스에 몰림)
+        if (!safeStart && Math.abs(seg.curve) > 3 && i % 5 === 0) {
+          const os = -Math.sign(seg.curve) * (IN - 0.10 + rnd() * 0.08);
+          push(seg, 'barrel', os, PROP_SIZE.barrel[0], PROP_SIZE.barrel[1], i, true);
+        }
+        // 교통 정체/공사 구간 흉내: 콘 + 배리어 + 타이어 더미(도로 위)
+        if (!safeStart && i % 47 === 13) {
+          push(seg, 'cone', side * (rnd() * 0.7), PROP_SIZE.cone[0], PROP_SIZE.cone[1], i, true);
+        }
+        if (!safeStart && i % 89 === 31) {
+          push(seg, 'barrier', side * (0.15 + rnd() * 0.35), PROP_SIZE.barrier[0], PROP_SIZE.barrier[1], i, true);
+          push(seg, 'cone', -side * 0.55, PROP_SIZE.cone[0], PROP_SIZE.cone[1], i + 3, true);
+        }
+        if (th !== 'suburb' && !safeStart && i % 61 === 44) {
+          push(seg, 'tirestack', -side * (IN - 0.05), PROP_SIZE.tirestack[0], PROP_SIZE.tirestack[1], i, true);
+        }
+      }
+    }
+    return this;
+  },
+
+  /* 위험 노면(기름/얼음/비포장/젖은 노면)과 점프대를 코스에 배정한다.
+     hazard 는 물리 그립에, ramp 는 발사(airborne)에 연결된다. */
+  placeHazards(rnd) {
+    const H = CONFIG.hazard;
+    const total = this.segments.length;
+    const starts = [];
+    const themePick = {
+      downtown: ['wet', 'oil', 'wet', 'gravel'],
+      industrial: ['oil', 'oil', 'gravel', 'wet'],
+      riverside: ['wet', 'ice', 'gravel', 'ice'],
+      old_town: ['gravel', 'cobble', 'oil'],
+      suburb: ['gravel', 'gravel', 'ice', 'wet']
+    };
+
+    let guard = 0;
+    while (starts.length < H.count && guard++ < H.count * 12) {
+      const at = 70 + Math.floor(rnd() * (total - 140));
+      let ok = true;
+      for (const s of starts) if (Math.abs(s - at) < 70) { ok = false; break; }
+      if (!ok) continue;
+      starts.push(at);
+
+      const theme = this.zoneOf(at).theme;
+      const pool = themePick[theme] || ['wet'];
+      let type = pool[Math.floor(rnd() * pool.length)];
+      if (type === 'cobble') type = 'gravel';
+      const len = H.minLen + Math.floor(rnd() * (H.maxLen - H.minLen));
+      const sideBias = rnd() < 0.45 ? (rnd() < 0.5 ? -1 : 1) : 0;   // 0 = 전체 차선
+
+      for (let i = at; i < Math.min(total, at + len); i++) {
+        const seg = this.segments[i];
+        seg.patch = { type: type, partial: sideBias !== 0, side: sideBias };
+        if (type === 'oil' || type === 'ice') { seg.hazard = { type: type }; seg.surface = type; }
+        else seg.surface = type;
+      }
+      // 진입 경고: 콘 + 노면 화살표로 위험 구간 앞을 표시
+      for (let k = 6; k >= 2; k -= 2) {
+        const i = at - k;
+        if (i < 1) continue;
+        const seg = this.segments[i];
+        const os = (sideBias ? sideBias * 0.62 : 0.86);
+        seg.sprites.push({
+          kind: 'cone', offset: os, w: PROP_SIZE.cone[0], h: PROP_SIZE.cone[1],
+          seed: i, solid: true, hitW: PROP_SIZE.cone[0] / CONFIG.road.width
+        });
+      }
+    }
+
+    // 점프대: 가능한 직선 구간에만 배치
+    let ramps = 0, at2 = 120;
+    while (ramps < H.rampCount && at2 < total - 60) {
+      at2 += 120 + Math.floor(rnd() * 180);
+      const i = at2;
+      if (i >= total - 20) break;
+      const seg = this.segments[i];
+      if (Math.abs(seg.curve) > 1.2 || seg.patch) continue;
+      if (this.segments[i - 1].ramp || seg.hazard) continue;
+      seg.ramp = true;
+      seg.rampOffset = (rnd() - 0.5) * 0.7;
+      seg.sprites.push({
+        kind: 'ramp', offset: seg.rampOffset, w: PROP_SIZE.ramp[0], h: PROP_SIZE.ramp[1],
+        seed: i, solid: false, hitW: PROP_SIZE.ramp[0] / CONFIG.road.width
+      });
+      // 좌우 안내 콘
+      for (const s of [-1, 1]) {
+        for (let k = 3; k >= 1; k--) {
+          const j = i - k * 2;
+          if (j < 1) continue;
+          this.segments[j].sprites.push({
+            kind: 'cone', offset: s * (0.86 + k * 0.02), w: PROP_SIZE.cone[0], h: PROP_SIZE.cone[1],
+            seed: j + s, solid: true, hitW: PROP_SIZE.cone[0] / CONFIG.road.width
+          });
+        }
+      }
+      ramps++;
+    }
+    this.rampCount = ramps;
+    return this;
+  },
+
+  /* ----------------------------------------------------------- 조회 -- */
+  findSegment(z) {
+    const n = this.segments.length;
+    let i = Math.floor(z / CONFIG.road.segLen) % n;
+    if (i < 0) i += n;
+    return this.segments[i];
+  },
+
+  /* 구간 조명 강도: 가로등 위치 기준으로 0..1 (M1: 단순 거리 감쇠) */
+  lampLight(z) {
+    const reach = CONFIG.lighting.lampReach;
+    let best = 0;
+    const n = this.lampList.length;
+    if (!n) return 0;
+    // z 근처만: lampList 는 정렬돼 있으므로 이진 탐색
+    let lo = 0, hi = n - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.lampList[mid].z < z) lo = mid + 1; else hi = mid; }
+    for (let k = Math.max(0, lo - 6); k < Math.min(n, lo + 6); k++) {
+      const d = Math.abs(this.lampList[k].z - z);
+      const f = 1 - utils.clamp(d / reach, 0, 1);
+      if (f > best) best = f;
+    }
+    return best;
+  },
+
+  nearestZoneName(z) {
+    const s = this.findSegment(z);
+    const zone = this.zoneOf(s.index);
+    return zone ? zone.name : '';
+  }
+};
+
+/* ===== 07_physics.js ===== */
+/* ==========================================================================
+   Physics - 플레이어 차량 물리(속도/조향/원심력/노면/충돌) + 카메라 상태
+   좌표: z = 진행 방향(유닛), playerX = 도로 폭 단위(-1 좌측 끝 ~ 1 우측 끝)
+   ========================================================================== */
+const Physics = {
+  player: null,
+  cam: { x: 0, y: 0, z: 0, depth: 0, bob: 0, shake: 0, shakeT: 0, fov: CONFIG.camera.fovBase },
+  fx: { particles: [], lines: [], skidmarks: [] },
+  stats: null,
+  mode: 'free',
+
+  setup() {
+    const maxSpeed = CONFIG.road.segLen / CONFIG.road.rumbleLen / (1 / 60);
+    const p = CONFIG.physics;
+    p.maxSpeed = maxSpeed;
+    p.accel = maxSpeed / 5.2;
+    p.brake = -maxSpeed / 1.6;
+    p.decel = -maxSpeed / 6.0;
+    p.offRoadDecel = -maxSpeed / 2.2;
+    p.offRoadLimit = maxSpeed / 3.2;
+    this.stats = this.baseStats();
+    this.player = this.newCar();
+    this.cam.depth = 1 / Math.tan((CONFIG.camera.fovBase / 2) * Math.PI / 180);
+    return this;
+  },
+
+  baseStats() {
+    return {
+      engineLv: 1, tireLv: 1, brakeLv: 1, bodyLv: 1, nitroLv: 1,
+      engine: 100, tire: 100, fuel: 100, body: 100,
+      tune: { accel: 0, grip: 0, brake: 0 }
+    };
+  },
+
+  newCar() {
+    const s = this.stats;
+    return {
+      z: 0, speed: 0, x: 0, y: 0, vy: 0, airborne: false,
+      steer: 0, yaw: 0, roll: 0, pitch: 0, prevSpeed: 0,
+      gear: 1, rpm: 0, throttle: 0, brakeOn: false, hand: false, boost: false, boostT: 0,
+      slip: 0, offRoad: false, surface: 'asphalt', grip: 1,
+      kmh: 0, travelled: 0, driftTime: 0,
+      dmg: { engine: s.engine, tire: s.tire, body: s.body },
+      blinker: 0, invuln: 0, started: false, flipped: 0,
+      rampCool: 0, wobPhase: Math.random() * 6.28, launchPower: 0
+    };
+  },
+
+  reset(keepStats) {
+    if (!keepStats) this.stats = this.baseStats();
+    this.player = this.newCar();
+    this.fx.particles = []; this.fx.lines = []; this.fx.skidmarks = [];
+    this.cam.shake = 0;
+    return this.player;
+  },
+
+  /* ------------------------------------------------------------ helpers -- */
+  topSpeed() {
+    const s = this.stats;
+    return CONFIG.physics.maxSpeed * (0.86 + 0.05 * s.engineLv + 0.02 * s.tune.accel);
+  },
+  powerRatio() {
+    const s = this.stats;
+    const dmgPenalty = s.engine < 30 ? 0.30 : s.engine < 60 ? 0.12 : 0;
+    return 1 + 0.10 * (s.engineLv - 1) + 0.04 * s.tune.accel - dmgPenalty;
+  },
+  gripNow() {
+    const s = this.stats;
+    const base = CONFIG.surfaces[this.player.surface] || 1;
+    const tire = 1 - (1 - s.tire / 100) * 0.35;
+    return utils.clamp(base * (0.9 + 0.04 * s.tireLv + 0.03 * s.tune.grip) * tire, 0.08, 1.6);
+  },
+
+  /* 노면 종류 결정: 코스 표면 + 위험 패치(기름/얼음/비포장) + 도로 바깥 */
+  updateSurface(seg) {
+    const p = this.player;
+    let surf = seg.surface || 'asphalt';
+    if (seg.hazard && CONFIG.hazardInfo[seg.hazard.type]) surf = seg.hazard.type;
+    if (p.offRoad && surf === 'asphalt') surf = 'dirt';
+    if (surf === p.surface) return;
+    p.surface = surf;
+    p.wobPhase = Math.random() * Math.PI * 2;
+    const info = CONFIG.hazardInfo[surf];
+    if (info) Toast.show(info.ko + ' 구간', 1500);
+    else if (surf === 'dirt') Toast.show('비포장 도로 바깥', 1200);
+  },
+
+  /* ----------------------------------------------------------- update -- */
+  update(dt, inp) {
+    const p = this.player, s = this.stats, ph = CONFIG.physics;
+    if (!p) return;
+    p.prevSpeed = p.speed;
+
+    const seg = Road.findSegment(p.z);
+    const seg2 = Road.findSegment(p.z + CONFIG.road.segLen);
+    const speedPct = p.speed / this.topSpeed();
+    this.updateSurface(seg);
+    p.grip = this.gripNow();
+
+    /* 입력 -> 가속/브레이크 */
+    p.throttle = inp.up ? 1 : 0;
+    p.brakeOn = !!inp.down;
+    p.hand = !!inp.hand;
+    const wantBoost = !!inp.boost && s.fuel > 1;
+    if (wantBoost && !p.boost) { p.boostT = 0; Sound.sfx('boost_s'); }
+    p.boost = wantBoost;
+    if (p.boost) {
+      p.boostT += dt;
+      s.fuel = Math.max(0, s.fuel - dt * 3.4);
+      if (p.boostT > 0.4 && Math.random() < 0.06) Sound.sfx('boost_l');
+    }
+
+    const acc = this.powerRatio();
+    const brkGrip = 0.50 + 0.50 * utils.clamp(p.grip, 0, 1);
+    if (p.boost) p.speed += ph.accel * acc * 1.55 * dt;
+    else if (p.throttle) p.speed += ph.accel * acc * dt;
+    else if (p.brakeOn) p.speed += ph.brake * (0.75 + 0.05 * s.brakeLv + 0.02 * s.tune.brake) * brkGrip * dt;
+    else p.speed += ph.decel * dt;
+
+    if (p.offRoad) {
+      if (p.speed > ph.offRoadLimit) p.speed += ph.offRoadDecel * dt;
+      // 비포장/잔도 소음·진동
+      this.cam.bob = Math.sin(p.z / 40) * (2 + speedPct * 5);
+    } else {
+      this.cam.bob = Math.sin(p.z / 900) * (0.5 + speedPct * 1.6);
+    }
+
+    /* 조향 */
+    const grip = p.grip;
+    const steerBase = (inp.left ? -1 : 0) + (inp.right ? 1 : 0);
+    const maxSteer = 1;
+    const responsive = (p.hand ? 1.45 : 1.0) * (0.55 + 0.45 * Math.min(1, speedPct * 2.2));
+    p.steer = utils.clamp(p.steer + steerBase * ph.steerRate * dt * responsive, -maxSteer, maxSteer);
+    if (!steerBase) p.steer *= Math.pow(0.02, dt);
+
+    // 조향은 속도가 있을 때만 효율(정지 상태에선 미세)
+    const dx = dt * 2 * speedPct * (0.6 + 0.4 * grip);
+    p.x += p.steer * dx;
+
+    // 커브 원심력
+    p.x -= dt * speedPct * speedPct * seg.curve * ph.centrifugal * (1.25 - grip * 0.35);
+
+    // 미끄러짐(핸드브레이크/저그립) - 드리프트 강도 0..1
+    const driftAmt = utils.clamp(
+      Math.abs(p.steer) * speedPct * (p.hand ? 1.7 : 1) * (1.4 - grip), 0, 1);
+    p.slip = utils.lerp(p.slip, driftAmt, dt * 6);
+    p.yaw = utils.lerp(p.yaw, p.steer * (0.16 + driftAmt * 0.5), dt * 6);
+    p.roll = utils.lerp(p.roll, -p.steer * (0.03 + driftAmt * 0.07), dt * 5);
+
+    // 저그립 노면(기름/얼음/비포장): steering 을 하지 않아도 차가 밀린다
+    if (grip < 0.62 && speedPct > 0.12 && !p.airborne) {
+      p.wobPhase += dt * (4.5 + speedPct * 11);
+      const wob = (0.62 - grip) * Math.sin(p.wobPhase) * speedPct;
+      p.x += wob * dt * 1.9;
+      p.yaw = utils.clamp(p.yaw + wob * 0.22, -1, 1);
+      p.roll = utils.clamp(p.roll + wob * 0.10, -0.25, 0.25);
+      if (grip < 0.35 && Math.random() < 0.25) FX.smoke(p.z + 40, p.x, 1);
+    }
+
+    const driftNeed = grip < 0.62 ? 0.20 : 0.35;
+    if (driftAmt > driftNeed && speedPct > 0.18 && !p.offRoad) {
+      p.driftTime += dt;
+      Sound.skid(driftAmt);
+      if (Math.random() < 0.6) FX.skid(p.z + 120, p.x, p.steer);
+      FX.smoke(p.z + 60, p.x, 1);
+    } else {
+      Sound.skid(0);
+    }
+
+    /* 노면 밖 + 충돌 */
+    p.offRoad = Math.abs(p.x) > 1;
+    this.collide(dt, seg, speedPct);
+
+    /* 점프대 발사 */
+    if (p.rampCool > 0) p.rampCool -= dt;
+    if (!p.airborne && p.rampCool <= 0 && seg.ramp && speedPct >= CONFIG.hazard.rampMinSpeed) {
+      const half = (PROP_SIZE.ramp[0] / CONFIG.road.width) * 0.5;
+      if (utils.overlap(p.x, 0.30, seg.rampOffset, half + 0.06, 0.7)) {
+        p.airborne = true;
+        p.vy = CONFIG.hazard.launchBase + CONFIG.hazard.launchMore * speedPct;
+        p.launchPower = speedPct;
+        p.rampCool = 1.5;
+        p.pitch = -0.14;
+        this.cam.shake = Math.max(this.cam.shake, 2.5);
+        Sound.sfx('jump');
+        Toast.show('점프 ' + Math.round(p.vy * p.vy / 39200) + 'm', 1200);
+      }
+    }
+
+    /* 점프(air) */
+    if (p.airborne) {
+      p.vy -= 9.81 * 40 * dt;
+      p.y += p.vy * dt;
+      p.pitch = utils.lerp(p.pitch, -0.10, dt * 3);
+      if (p.y <= 0) {
+        p.y = 0; p.airborne = false;
+        const hard = Math.abs(p.vy) / 900;
+        this.cam.shake = Math.min(CONFIG.fx.shakeMax, 3 + hard * 8);
+        p.pitch = 0.06;
+        if (hard > 0.5) { this.damageBody(hard * 6, 'landing'); Sound.sfx('crash2'); }
+      }
+    } else {
+      p.pitch = utils.lerp(p.pitch, 0, dt * 4);
+    }
+
+    /* 속도 클램프 + 이동 */
+    p.speed = utils.clamp(p.speed, 0, this.topSpeed() * (p.boost ? 1.12 : 1));
+    p.kmh = p.speed * ph.kmhFactor;
+    const dz = p.speed * dt;
+    p.z = utils.inc(p.z, dz, Road.trackLength);
+    p.travelled += dz;
+
+    /* 기어/rpm(표시+엔진음) */
+    const gr = ph.dragShifts;
+    const band = 1 / gr;
+    const within = (speedPct % band) / band;
+    p.gear = Math.min(gr, 1 + Math.floor(speedPct * gr));
+    p.rpm = utils.clamp(0.16 + within * 0.84 + (p.throttle ? 0.05 : -0.03), 0.05, 1);
+    Sound.engine(p.rpm, p.throttle, p.boost);
+
+    /* 카메라 */
+    this.cam.fov = utils.lerp(this.cam.fov, CONFIG.camera.fovBase + (CONFIG.camera.fovMax - CONFIG.camera.fovBase) * speedPct, dt * 3);
+    this.cam.depth = 1 / Math.tan((this.cam.fov / 2) * Math.PI / 180);
+    this.cam.x = p.x * CONFIG.road.width;
+    this.cam.y = CONFIG.camera.height + p.y;
+    this.cam.shakeT += dt;
+    if (this.cam.shake > 0) this.cam.shake = Math.max(0, this.cam.shake - dt * 14);
+
+    if (p.invuln > 0) p.invuln -= dt;
+    s.fuel = Math.max(0, s.fuel - dt * 0.16 - dt * speedPct * 0.22);
+
+    FX.update(dt, p);
+    return p;
+  },
+
+  /* 실체 충돌: 연속 가드레일 + 개별 물체(solid 스프라이트) */
+  collide(dt, seg, speedPct) {
+    const p = this.player;
+    // 1) 가드레일은 무적 여부와 관계없이 항상 적용(경계를 통과하면 안 됨)
+    this.railCollide(dt);
+    // 2) 개별 물체 충돌은 최근 충돌 직후 짧은 무적 시간에는 무시
+    if (p.invuln > 0) return;
+    const near = [Road.findSegment(p.z - CONFIG.road.segLen), seg, Road.findSegment(p.z + CONFIG.road.segLen)];
+    for (const sg of near) {
+      for (const sp of sg.sprites) {
+        if (!sp.solid) continue;
+        if (!utils.overlap(p.x, 0.34, sp.offset, (sp.w / CONFIG.road.width) * 0.5, 0.6)) continue;
+        this.crash(sp, speedPct);
+        return;
+      }
+    }
+  },
+
+  /* 가드레일 접촉: 감속 + 차체 마모 + 불꽃. 노면 밖으로 밀려나는 것을 막는다 */
+  railCollide(dt) {
+    const p = this.player, s = this.stats;
+    const RAIL = CONFIG.road.railLimit;
+    if (Math.abs(p.x) <= RAIL) return;
+    p.x = utils.clamp(p.x, -RAIL, RAIL);
+    // 스크레이핑: 초당 30% 감속, 차체 초당 2.5 깎임(금방 폐차되지 않도록 완만하게)
+    p.speed = Math.max(0, p.speed * (1 - 0.35 * dt));
+    this.cam.shake = Math.max(this.cam.shake, 2.2);
+    Sound.skid(0.5);
+    if (Math.random() < 0.4) FX.sparks(p.x);
+    s.body = Math.max(0, s.body - dt * 2.5);
+    if (s.body <= 0) Game.wreck();
+  },
+
+  crash(sp, speedPct) {
+    const p = this.player;
+    const info = CONFIG.obstacles[sp.kind] || { dmg: 1, keep: 0.35, ko: '장애물' };
+    p.speed *= info.keep;
+    p.invuln = 1.0;
+    this.cam.shake = CONFIG.fx.shakeMax * utils.clamp(0.45 + speedPct, 0.45, 1);
+    this.damageBody((3 + speedPct * 12) * info.dmg, 'impact');
+    Sound.sfx(speedPct > 0.5 ? 'crash2' : 'crash1');
+    FX.debris(sp.offset, sp.kind);
+    Toast.show('충돌! ' + info.ko);
+  },
+
+  damageBody(amount, why) {
+    const s = this.stats;
+    s.body = Math.max(0, s.body - amount);
+    s.tire = Math.max(0, s.tire - amount * 0.18);
+    if (why === 'impact') s.engine = Math.max(0, s.engine - amount * 0.22);
+    if (s.body <= 0) Game.wreck();
+  },
+
+  /* 외부에서 노면 변경(M2 에서 호출) */
+  setSurface(seg, type, extra) {
+    seg.surface = type;
+    seg.hazard = extra || null;
+  }
+};
+
+/* ===== 08_render.js ===== */
+/* ==========================================================================
+   Render - 2.5D 유사 3D 렌더러 (OutRun/GTA1 계열 세그먼트 프로젝션)
+   FX 는 동일한 파일에 둔다(파티클/스키드마크/디브리).
+   ========================================================================== */
+const FX = {
+  parts: [], skids: [],
+  smoke(z, x, n) {
+    if (Physics.fx.particles.length > CONFIG.fx.maxParticles) return;
+    for (let i = 0; i < (n || 1); i++) {
+      Physics.fx.particles.push({
+        x: x + (Math.random() - 0.5) * 0.22, z: z + Math.random() * 60,
+        vx: (Math.random() - 0.5) * 0.25, vz: 60 + Math.random() * 120, vy: 40 + Math.random() * 70,
+        y: 4, life: 0.55 + Math.random() * 0.5, t: 0, kind: 'smoke', size: 90 + Math.random() * 90
+      });
+    }
+  },
+  debris(offset, kind) {
+    for (let i = 0; i < 14; i++) {
+      Physics.fx.particles.push({
+        x: offset + (Math.random() - 0.5) * 0.3, z: Physics.player.z + Math.random() * 100,
+        vx: (Math.random() - 0.5) * 1.6, vz: -200 + Math.random() * 400, vy: 120 + Math.random() * 260,
+        y: 20 + Math.random() * 40, life: 0.7 + Math.random() * 0.7, t: 0, kind: 'debris',
+        size: 14 + Math.random() * 22, col: kind === 'barrel' ? '#c8394a' : '#8d97a5'
+      });
+    }
+  },
+  sparks(x) {
+    for (let i = 0; i < 6; i++) {
+      Physics.fx.particles.push({
+        x: x, z: Physics.player.z + 40, vx: (Math.random() - 0.5) * 2, vz: -100 - Math.random() * 200,
+        vy: 60 + Math.random() * 120, y: 10, life: 0.3, t: 0, kind: 'spark', size: 8
+      });
+    }
+  },
+  skid(z, x, steer) {
+    if (Physics.fx.skidmarks.length > 400) Physics.fx.skidmarks.shift();
+    Physics.fx.skidmarks.push({ z: z, x: x, w: 0.16, a: utils.clamp(Math.abs(steer), 0.2, 1) });
+  },
+  update(dt, p) {
+    const ps = Physics.fx.particles;
+    for (let i = ps.length - 1; i >= 0; i--) {
+      const q = ps[i];
+      q.t += dt;
+      if (q.t >= q.life) { ps.splice(i, 1); continue; }
+      q.z += q.vz * dt; q.x += q.vx * dt * 0.15;
+      if (q.kind !== 'smoke') {
+        q.vy -= 700 * dt; q.y += q.vy * dt;
+        if (q.y < 0) { q.y = 0; q.vy *= -0.35; q.vx *= 0.6; q.vz *= 0.6; }
+      } else {
+        q.y += q.vy * dt; q.vy *= 0.92; q.size += 90 * dt;
+      }
+    }
+    // 스키드마크는 뒤로 밀리면 제거
+    const sk = Physics.fx.skidmarks;
+    while (sk.length && Math.abs(utils.lapDiff(sk[0].z, p.z, Road.trackLength)) > 2600) sk.shift();
+  }
+};
+utils.lapDiff = function (a, b, total) {
+  let d = a - b;
+  while (d > total / 2) d -= total;
+  while (d < -total / 2) d += total;
+  return d;
+};
+
+/* =========================================================== renderer === */
+const Render = {
+  W: 0, H: 0, ctx: null,
+  skyCache: null, vigCache: null, lampSprite: null,
+  camY: 0, camZ: 0, camX: 0, camDepth: 0,
+  segColors: {}, _fogTint: null,
+
+  init() {
+    this.ctx = SCR.ctx; this.W = SCR.w; this.H = SCR.h;
+    this.buildSky();
+    this.buildVignette();
+    return this;
+  },
+
+  /* ---------------------------------------------- 배경(하늘/스카이라인) -- */
+  buildSky() {
+    const c = document.createElement('canvas');
+    c.width = this.W; c.height = this.H;
+    const g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 0, this.H);
+    gr.addColorStop(0, PALETTE.skyTop);
+    gr.addColorStop(0.42, PALETTE.skyMid);
+    gr.addColorStop(0.58, PALETTE.horizon);
+    gr.addColorStop(1, '#0a0f1a');
+    g.fillStyle = gr; g.fillRect(0, 0, this.W, this.H);
+    // 별
+    const rnd = utils.mulberry32(4242);
+    for (let i = 0; i < 190; i++) {
+      const x = rnd() * this.W, y = rnd() * this.H * 0.42;
+      const a = 0.15 + rnd() * 0.55;
+      g.fillStyle = 'rgba(200,225,255,' + a.toFixed(2) + ')';
+      g.fillRect(x, y, 1.2, 1.2);
+    }
+    // 달
+    const mg = g.createRadialGradient(this.W * 0.78, this.H * 0.16, 4, this.W * 0.78, this.H * 0.16, 90);
+    mg.addColorStop(0, 'rgba(255,245,220,0.95)');
+    mg.addColorStop(0.22, 'rgba(255,238,205,0.55)');
+    mg.addColorStop(1, 'rgba(255,230,190,0)');
+    g.fillStyle = mg; g.beginPath(); g.arc(this.W * 0.78, this.H * 0.16, 90, 0, Math.PI * 2); g.fill();
+    // 도시 글로우(지평선)
+    const hg = g.createLinearGradient(0, this.H * 0.40, 0, this.H * 0.60);
+    hg.addColorStop(0, 'rgba(255,120,90,0.05)');
+    hg.addColorStop(0.6, 'rgba(120,90,200,0.10)');
+    hg.addColorStop(1, 'rgba(20,30,50,0)');
+    g.fillStyle = hg; g.fillRect(0, this.H * 0.40, this.W, this.H * 0.22);
+    this.skyCache = c;
+  },
+
+  buildVignette() {
+    const c = document.createElement('canvas');
+    c.width = this.W; c.height = this.H;
+    const g = c.getContext('2d');
+    const rg = g.createRadialGradient(this.W / 2, this.H * 0.52, this.H * 0.28, this.W / 2, this.H * 0.52, this.H * 0.95);
+    rg.addColorStop(0, 'rgba(0,0,0,0)');
+    rg.addColorStop(1, 'rgba(0,0,0,0.62)');
+    g.fillStyle = rg; g.fillRect(0, 0, this.W, this.H);
+    this.vigCache = c;
+  },
+
+  /* --------------------------------------------------------- 프레임 -- */
+  frame() {
+    const g = this.ctx, W = this.W, H = this.H;
+    const p = Physics.player, cam = Physics.cam;
+    this.camDepth = cam.depth;
+
+    g.setTransform(SCR.dpr, 0, 0, SCR.dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+
+    // 카메라 흔들림
+    const sh = cam.shake;
+    const sx = sh ? (Math.random() - 0.5) * sh : 0;
+    const sy = sh ? (Math.random() - 0.5) * sh : 0;
+    g.save();
+    g.translate(sx, sy);
+
+    const base = Road.findSegment(p.z);
+    const basePct = utils.percentRemaining(p.z, CONFIG.road.segLen);
+    const playerSeg = Road.findSegment(p.z + this.playerZ());
+    const playerY = utils.interpolate(playerSeg.p1.world.y, playerSeg.p2.world.y, basePct);
+
+    // Jake Gordon 식: 카메라는 플레이어 z 에 두고, 카메라 높이가 시선을 만든다.
+    this.camX = p.x * CONFIG.road.width;
+    this.camY = CONFIG.camera.height + playerY + (cam.bob || 0);
+    this.camZ = p.z;
+
+    /* 배경 */
+    this.drawBackground(base, playerSeg);
+
+    /* 도로 + 소품 */
+    this.drawRoad(base, basePct);
+
+    /* 플레이어 */
+    this.drawPlayer();
+
+    g.restore();
+
+    /* 오버레이 */
+    if (this.vigCache) { g.drawImage(this.vigCache, 0, 0); }
+    this.drawSpeedLines();
+    if (p.boost) this.drawBoostWarp();
+  },
+
+  playerZ() { return this.camDepth * CONFIG.road.width; },
+  camOffsetX(base, pct) {
+    // 커브 안에서 카메라가 도로 중심으로 살짝 당겨지도록(시야 자연스러움)
+    return utils.interpolate(base.p1.world.x, base.p2.world.x, pct) + this.camX * 0;
+  },
+
+  drawBackground(base, playerSeg) {
+    const g = this.ctx, W = this.W, H = this.H;
+    if (this.skyCache) g.drawImage(this.skyCache, 0, 0);
+    else { g.fillStyle = PALETTE.skyTop; g.fillRect(0, 0, W, H); }
+
+    // 외부 px_* 레이어가 있으면 distant skyline 으로 사용(원본은 160x144 픽셀아트)
+    const far = Assets.img('px_far'), mid = Assets.img('px_mid'), close = Assets.img('px_close');
+    const curveShift = -(playerSeg.curve || 0) * 260 + (Physics.player.x * -60);
+    const horizon = H * 0.52;
+    const usePx = far && mid && close;
+    if (usePx) {
+      g.imageSmoothingEnabled = false;
+      const layers = [
+        { im: far, y: horizon - 118, h: 120, par: 0.10, a: 0.55 },
+        { im: mid, y: horizon - 96, h: 100, par: 0.22, a: 0.7 },
+        { im: close, y: horizon - 70, h: 78, par: 0.42, a: 0.85 }
+      ];
+      for (const L of layers) {
+        const w = Math.round(L.im.width * (L.h / L.im.height));
+        let off = (curveShift * L.par) % w; if (off > 0) off -= w;
+        g.globalAlpha = L.a;
+        for (let x = off; x < W; x += w) g.drawImage(L.im, Math.round(x), Math.round(L.y), w, L.h);
+        g.globalAlpha = 1;
+      }
+      g.imageSmoothingEnabled = true;
+    } else {
+      // 절차적 스카이라인(빌딩 실루엣 2줄)
+      this.drawProcSkyline(horizon - 132, 132, 0.18, '#0a1220', 46);
+      this.drawProcSkyline(horizon - 96, 96, 0.34, '#0c1524', 30);
+    }
+  },
+
+  drawProcSkyline(y, h, par, col, n) {
+    const g = this.ctx, W = this.W;
+    const shift = (-(Physics.player.x * 90 * par) - (Road.findSegment(Physics.player.z).curve * 400 * par)) % W;
+    const rnd = utils.mulberry32(1123);
+    g.fillStyle = col;
+    let x = shift - W;
+    while (x < W * 2) {
+      const bw = 24 + rnd() * 60, bh = h * (0.35 + rnd() * 0.65);
+      g.fillRect(Math.round(x), Math.round(y + h - bh), Math.round(bw), Math.round(bh));
+      x += bw + 4 + rnd() * 12;
+    }
+    // 창문 점
+    g.fillStyle = 'rgba(255,200,130,0.16)';
+    const r2 = utils.mulberry32(99);
+    x = shift - W;
+    while (x < W * 2) {
+      const bw = 24 + r2() * 60, bh = h * (0.35 + r2() * 0.65);
+      for (let k = 0; k < 4; k++) {
+        if (r2() > 0.5) continue;
+        g.fillRect(Math.round(x + r2() * bw), Math.round(y + h - bh + r2() * bh), 2, 2);
+      }
+      x += bw + 4 + r2() * 12;
+    }
+  },
+
+  drawRoad(base, basePct) {
+    const g = this.ctx, W = this.W, H = this.H;
+    const RW = CONFIG.road.width;
+    const N = CONFIG.camera.drawDistance;
+    const lanes = CONFIG.road.lanes;
+    const p = Physics.player;
+
+    let maxy = H;
+    let x = 0, dx = -(base.curve * basePct);
+
+    const n = Road.segments.length;
+    for (let k = 0; k < N; k++) {
+      const idx = (base.index + k) % n;
+      const seg = Road.segments[idx];
+      seg.looped = idx < base.index;
+      seg.fog = utils.exponentialFog(k / N, CONFIG.camera.fogDensity);
+
+      const cz = this.camZ + (seg.looped ? Road.trackLength : 0);
+      utils.project(seg.p1, this.camX - x, this.camY, cz, this.camDepth, W, H, RW);
+      utils.project(seg.p2, this.camX - x - dx, this.camY, cz, this.camDepth, W, H, RW);
+      x += dx; dx += seg.curve;
+      seg.clipMax = maxy;
+
+      if (seg.p1.camera.z <= this.camDepth || seg.p2.screen.y >= seg.p1.screen.y || seg.p2.screen.y >= maxy) continue;
+
+      this.drawSegment(seg);
+      maxy = seg.p2.screen.y;
+    }
+
+    // 소품/파티클은 원거리 -> 근거리 순
+    for (let k = N - 1; k > 0; k--) {
+      const idx = (base.index + k) % n;
+      const seg = Road.segments[idx];
+      if (!seg.p1.screen.scale || seg.p1.camera.z <= this.camDepth) continue;
+      const clip = seg.clipMax === undefined ? H : seg.clipMax;
+      for (const sp of seg.sprites) this.drawSprite(seg, sp, clip);
+      for (const q of Physics.fx.particles) {
+        const d = utils.lapDiff(q.z, seg.p1.world.z, Road.trackLength);
+        if (Math.abs(d) > CONFIG.road.segLen * 0.6) continue;
+        this.drawParticle(seg, q);
+      }
+    }
+  },
+
+  drawSegment(seg) {
+    const g = this.ctx, W = this.W;
+    const s1 = seg.p1.screen, s2 = seg.p2.screen;
+    const maxy = seg.clipMax;
+
+    // 조명 계수: 헤드램프 + 가로등 + 환경광
+    const dist = seg.p1.camera.z;
+    const L = CONFIG.lighting;
+    const hl = L.headBoost * utils.clamp(1 - Math.pow(utils.clamp((dist - L.headNear) / L.headReach, 0, 1), 1.5));
+    const lamp = L.lampBoost * Road.lampLight(seg.p1.world.z);
+    const lit = utils.clamp(L.ambient + hl + lamp, 0, 1.35);
+    seg.lit = lit;
+
+    const light = seg.light;
+    let roadC = light ? PALETTE.roadLight : PALETTE.roadDark;
+    let rumC = light ? PALETTE.rumbleLight : PALETTE.rumbleDark;
+    let grsC = light ? PALETTE.grassLight : PALETTE.grassDark;
+    if (seg.surface === 'gravel') { roadC = light ? '#2a2620' : '#242019'; grsC = light ? '#171410' : '#12100c'; }
+    else if (seg.surface === 'wet') roadC = light ? '#1a222c' : '#151c25';
+    else if (seg.surface === 'ice') roadC = light ? '#28323d' : '#212a34';
+    else if (seg.surface === 'oil') roadC = light ? '#131820' : '#0f141b';
+
+    const W1 = s1.w, W2 = s2.w;
+    const x1 = s1.x, y1 = s1.y, x2 = s2.x, y2 = s2.y;
+
+    // 가장자리(비포장/잔도)
+    g.fillStyle = this.shadeTo(grsC, lit);
+    g.fillRect(0, y2, W, Math.max(0, Math.min(maxy, y1) - y2 + 1));
+
+    // 어깨/루머블
+    const r1 = W1 * 0.045, r2 = W2 * 0.045;
+    const l1 = W1 * CONFIG.road.laneMarkerW, l2 = W2 * CONFIG.road.laneMarkerW;
+    this.poly(x1 - W1 - r1, y1, x1 - W1, y1, x2 - W2, y2, x2 - W2 - r2, y2, this.shadeTo(rumC, lit));
+    this.poly(x1 + W1 + r1, y1, x1 + W1, y1, x2 + W2, y2, x2 + W2 + r2, y2, this.shadeTo(rumC, lit));
+    // 노면
+    this.poly(x1 - W1, y1, x1 + W1, y1, x2 + W2, y2, x2 - W2, y2, this.shadeTo(roadC, lit));
+
+    // 위험 노면 패치(기름/얼음/비포장/젖은 구간) + 점프대 데칼
+    this.drawPatch(seg, lit);
+
+    // 가드레일(연속 벽) - 물리 경계 railLimit 와 같은 위치
+    this.drawRails(seg, lit);
+
+    // 차선 마커(light/dark 패턴으로 리듬)
+    if (light) {
+      const lanes = CONFIG.road.lanes;
+      const laneW1 = (W1 * 2) / lanes, laneW2 = (W2 * 2) / lanes;
+      for (let i = 1; i < lanes; i++) {
+        const lx1 = x1 - W1 + laneW1 * i, lx2 = x2 - W2 + laneW2 * i;
+        this.poly(lx1 - l1, y1, lx1 + l1, y1, lx2 + l2, y2, lx2 - l2, y2, this.shadeTo(PALETTE.lane, lit));
+      }
+    }
+    // 중앙선 강조(도심 1차선 유도)
+    // 헤드램프 빔 오버레이(근접 구간만)
+    if (lit > L.ambient + 0.05 && dist < L.headReach * 1.1) {
+      const a = utils.clamp((lit - L.ambient) * 0.30, 0, 0.28);
+      this.poly(x1 - W1, y1, x1 + W1, y1, x2 + W2, y2, x2 - W2, y2, 'rgba(255,205,140,' + a.toFixed(3) + ')');
+    }
+    // 안개(어둠)
+    if (seg.fog < 1) {
+      this.poly(x1 - W1 - r1, y1, x1 + W1 + r1, y1, x2 + W2 + r2, y2, x2 - W2 - r2, y2,
+        'rgba(5,7,13,' + (1 - seg.fog).toFixed(3) + ')');
+    }
+  },
+
+  /* 연속 가드레일: 물리 경계(railLimit) 위치에 Perspective 된 벽으로 그린다 */
+  drawRails(seg, lit) {
+    const g = this.ctx, W = this.W;
+    const s1 = seg.p1.screen, s2 = seg.p2.screen;
+    if (!s1.w || !s2.w) return;
+    const RAIL = CONFIG.road.railLimit;
+    const k1 = s1.w / CONFIG.road.width, k2 = s2.w / CONFIG.road.width;
+    const h1 = CONFIG.road.railHeight * k1, h2 = CONFIG.road.railHeight * k2;
+    if (h1 < 0.6 && h2 < 0.6) return;
+    const fade = utils.clamp(seg.fog, 0, 1);
+    const shade = lit * (0.30 + 0.70 * fade);
+    const bodyC = this.shadeTo('#2a323c', Math.min(shade, 0.85));
+    const topC = this.shadeTo('#5d6a78', Math.min(shade, 0.8));
+
+    for (const sgn of [-1, 1]) {
+      const ax1 = s1.x + s1.w * RAIL, ax2 = s2.x + s2.w * RAIL;
+      // 안쪽 면
+      this.poly(ax1, s1.y, ax1, s1.y - h1, ax2, s2.y - h2, ax2, s2.y, bodyC);
+      // 상단 레일(두께)
+      const t1 = Math.max(1, h1 * 0.16), t2 = Math.max(0.6, h2 * 0.16);
+      this.poly(ax1, s1.y - h1, ax1, s1.y - h1 - t1, ax2, s2.y - h2 - t2, ax2, s2.y - h2, topC);
+      // 반사판(가로등 빛 받는 지점만 밝게) - 2 세그먼트마다 점
+      if (seg.index % 2 === 0 && h1 > 2) {
+        g.fillStyle = this.shadeTo('#e4ecf5', Math.min(lit * fade, 0.72));
+        g.fillRect(ax1 - sgn * Math.max(0.5, k1 * 12), s1.y - h1 * 0.62, Math.max(1, k1 * 26), Math.max(1, h1 * 0.16));
+      }
+    }
+  },
+
+  /* 노면 패치(위험 구간) + 점프대 데칼: perspective 사각형으로 그린다 */
+  drawPatch(seg, lit) {
+    const g = this.ctx;
+    const s1 = seg.p1.screen, s2 = seg.p2.screen;
+    if (!s1.w || !s2.w) return;
+    const fade = utils.clamp(seg.fog, 0, 1);
+    const k1 = s1.w / CONFIG.road.width;
+
+    if (seg.patch) {
+      const t = seg.patch.type;
+      let col = null, al = 0;
+      if (t === 'oil') { col = [8, 11, 16]; al = 0.66; }
+      else if (t === 'ice') { col = [150, 208, 232]; al = 0.16; }
+      else if (t === 'gravel') { col = [58, 49, 38]; al = 0.55; }
+      else if (t === 'wet') { col = [96, 134, 176]; al = 0.11; }
+      if (col) {
+        let lo = -1, hi = 1;
+        if (seg.patch.partial) {
+          const j = 0.06 + utils.hash01(seg.index * 7 + 3) * 0.22;
+          if (seg.patch.side > 0) lo = j; else hi = -j;
+        }
+        const a = (al * (0.42 + 0.58 * lit) * fade).toFixed(3);
+        this.poly(s1.x + s1.w * lo, s1.y, s1.x + s1.w * hi, s1.y,
+          s2.x + s2.w * hi, s2.y, s2.x + s2.w * lo, s2.y,
+          'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + a + ')');
+        // 기름/얼음은 반사 광택, 비포장은 자갈 점
+        if ((t === 'oil' || t === 'ice') && lit > 0.25) {
+          const sa = ((t === 'ice' ? 0.20 : 0.13) * lit * fade).toFixed(3);
+          const cx1 = s1.x + s1.w * (lo + hi) * 0.5, cx2 = s2.x + s2.w * (lo + hi) * 0.5;
+          const qw = (hi - lo) * 0.34;
+          this.poly(cx1 - s1.w * qw, s1.y, cx1 + s1.w * qw, s1.y,
+            cx2 + s2.w * qw, s2.y, cx2 - s2.w * qw, s2.y, 'rgba(190,225,255,' + sa + ')');
+        }
+        if (t === 'gravel' && k1 > 0.05 && seg.index % 2 === 0) {
+          g.fillStyle = 'rgba(120,110,92,' + (0.20 * lit * fade).toFixed(3) + ')';
+          for (let i = 0; i < 4; i++) {
+            const hx = (utils.hash01(seg.index * 13 + i) - 0.5) * 1.8;
+            if (seg.patch.partial && (seg.patch.side > 0 ? hx < 0.1 : hx > -0.1)) continue;
+            const sz = Math.max(1, k1 * 26);
+            g.fillRect(s1.x + s1.w * hx, s1.y - sz, sz, Math.max(1, sz * 0.6));
+          }
+        }
+      }
+    }
+
+    // 점프대 진입 화살표(노면 셰브론)
+    if (seg.ramp) {
+      const a = (0.42 * fade * (0.4 + 0.6 * lit)).toFixed(3);
+      const off = seg.rampOffset || 0;
+      const cx1 = s1.x + s1.w * off;
+      const ww = s1.w * 0.30, ah = Math.max(1.2, k1 * 90);
+      g.fillStyle = 'rgba(242,196,60,' + a + ')';
+      for (let n = 0; n < 2; n++) {
+        const yy = s1.y - ah * n * 0.9;
+        g.beginPath();
+        g.moveTo(cx1, yy - ah * 0.75);
+        g.lineTo(cx1 + ww, yy);
+        g.lineTo(cx1 + ww * 0.62, yy);
+        g.lineTo(cx1, yy - ah * 0.34);
+        g.lineTo(cx1 - ww * 0.62, yy);
+        g.lineTo(cx1 - ww, yy);
+        g.closePath(); g.fill();
+      }
+    }
+  },
+
+  poly(x1, y1, x2, y2, x3, y3, x4, y4, col) {
+    const g = this.ctx;
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(x1, y1); g.lineTo(x2, y2); g.lineTo(x3, y3); g.lineTo(x4, y4);
+    g.closePath(); g.fill();
+  },
+
+  shadeTo(hex, k) {
+    if (hex[0] !== '#') return hex;
+    if (k >= 1) return hex;
+    const m = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!m) return hex;
+    const f = (v) => utils.clamp(Math.round(v * k), 0, 255);
+    const key = hex + '|' + Math.round(k * 40);
+    let c = this.segColors[key];
+    if (!c) {
+      c = 'rgb(' + f(parseInt(m[1], 16)) + ',' + f(parseInt(m[2], 16)) + ',' + f(parseInt(m[3], 16)) + ')';
+      this.segColors[key] = c;
+    }
+    return c;
+  },
+
+  drawSprite(seg, sp, clipY) {
+    const g = this.ctx;
+    const scale = seg.p1.screen.scale;
+    if (!scale || scale <= 0) return;
+    const k = scale * SCR.w / 2;               // 월드 1유닛 -> 픽셀(가로/세로 동일 배율)
+    const destX = seg.p1.screen.x + sp.offset * CONFIG.road.width * k;
+    const destY = seg.p1.screen.y;
+    const w = sp.w * k, h = sp.h * k;
+    if (w < 1 || h < 1) return;
+    if (destY - h > clipY) return;
+    const lit = utils.clamp(seg.lit, 0.12, 1.25);
+    g.save();
+    if (lit < 1) g.globalAlpha = utils.clamp(lit + 0.25, 0.25, 1);
+    Sprites.prop(g, sp.kind, destX, destY, w, h, sp.seed);
+    g.restore();
+  },
+
+  drawParticle(seg, q) {
+    const g = this.ctx;
+    const scale = seg.p1.screen.scale;
+    if (!scale) return;
+    const k = scale * SCR.w / 2;
+    const x = seg.p1.screen.x + q.x * CONFIG.road.width * k;
+    const yBase = seg.p1.screen.y;
+    const y = yBase - q.y * k;
+    const s = Math.max(1, q.size * k);
+    const af = 1 - q.t / q.life;
+    if (q.kind === 'smoke') {
+      g.globalAlpha = 0.20 * af;
+      g.fillStyle = '#8c9bad';
+      g.beginPath(); g.arc(x, y, s, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 1;
+    } else if (q.kind === 'debris') {
+      g.globalAlpha = Math.min(1, af * 1.6);
+      g.fillStyle = q.col;
+      g.fillRect(x - s / 2, y - s / 2, s, s);
+      g.globalAlpha = 1;
+    } else {
+      g.globalAlpha = af;
+      g.fillStyle = '#ffd27a';
+      g.fillRect(x, y, Math.max(1, s * 0.6), Math.max(1, s * 0.6));
+      g.globalAlpha = 1;
+    }
+  },
+
+  /* --------------------------------------------------- 플레이어 차량 -- */
+  drawPlayer() {
+    const g = this.ctx, W = this.W, H = this.H;
+    const p = Physics.player;
+    const chase = Save.data.cam !== 'hood';
+    const cx = W / 2 + p.yaw * 90 + (p.slip * p.steer * 40);
+    const cy = H * (chase ? 0.80 : 0.86);
+    const w = W * (chase ? 0.30 : 0.34), h = H * (chase ? 0.30 : 0.34);
+    const air = p.y > 0 ? utils.clamp(p.y / 900, 0, 1) : 0;
+    const lampLit = utils.clamp(0.55 + CONFIG.lighting.lampBoost * Road.lampLight(p.z), 0.3, 1.3);
+    const dmg = 1 - Physics.stats.body / 100;
+    if (!chase) {
+      // 보닛 뷰: 도로 + 글로시 후드 일부
+      g.save();
+      g.globalAlpha = 0.94;
+      Sprites.carHood(g, cx, H + h * 0.16, w * 2.4, h * 1.35, {
+        steer: p.steer, drift: p.slip, color: Game.carColor,
+        dmg: dmg, light: lampLit
+      });
+      g.restore();
+      return;
+    }
+    g.save();
+    g.translate(0, -air * 60);
+    Sprites.carRear(g, cx, cy + (Physics.cam.bob || 0) * 0.6, w, h, {
+      color: Game.carColor,
+      steer: p.steer, yaw: p.yaw + p.slip * p.steer * 0.6, brake: p.brakeOn || p.speed < p.prevSpeed,
+      boost: p.boost, dmg: dmg, drift: p.slip, air: air,
+      light: lampLit, wing: Save.data.wing !== false, plate: Save.data.plate || 'ND-01'
+    });
+    g.restore();
+  },
+
+  drawSpeedLines() {
+    const g = this.ctx, W = this.W, H = this.H;
+    const sp = Physics.player.speed / Physics.topSpeed();
+    if (sp < 0.55) return;
+    const a = utils.clamp((sp - 0.55) / 0.45, 0, 1);
+    const n = Math.floor(CONFIG.fx.speedLines * a);
+    g.save();
+    g.strokeStyle = 'rgba(200,225,255,' + (0.05 + a * 0.16).toFixed(3) + ')';
+    g.lineWidth = 1;
+    const rnd = utils.mulberry32(Math.floor(Physics.player.z / 40));
+    for (let i = 0; i < n; i++) {
+      const ang = rnd() * Math.PI * 2;
+      const r0 = H * (0.32 + rnd() * 0.5);
+      const len = H * (0.04 + a * 0.16) * (0.4 + rnd());
+      const cx = W / 2, cy = H * 0.52;
+      g.beginPath();
+      g.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0 * 0.7);
+      g.lineTo(cx + Math.cos(ang) * (r0 + len), cy + Math.sin(ang) * (r0 + len) * 0.7);
+      g.stroke();
+    }
+    g.restore();
+  },
+
+  drawBoostWarp() {
+    const g = this.ctx, W = this.W, H = this.H;
+    const rg = g.createRadialGradient(W / 2, H * 0.52, H * 0.18, W / 2, H * 0.52, H * 0.9);
+    rg.addColorStop(0, 'rgba(120,190,255,0)');
+    rg.addColorStop(1, 'rgba(90,150,255,0.16)');
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  }
+};
+
+/* ===== 09_hud.js ===== */
+/* ==========================================================================
+   HUD - 같은 캔버스 위에 얹는 계기판/미니맵/상태 표시
+   ========================================================================== */
+const HUD = {
+  fps: 60, fpsAcc: 0, fpsN: 0, fpsShow: 60,
+  zoneShown: '', zoneT: 0,
+
+  draw(dt) {
+    const g = SCR.ctx, W = SCR.w, H = SCR.h;
+    const p = Physics.player, s = Physics.stats;
+
+    this.fpsAcc += dt; this.fpsN++;
+    if (this.fpsAcc >= 0.5) { this.fpsShow = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; }
+
+    g.save();
+    g.setTransform(SCR.dpr, 0, 0, SCR.dpr, 0, 0);
+
+    this.drawTopLeft();
+    this.drawGauge(W - 118, H - 96, 78);
+    this.drawSurface(W - 118, H - 178);
+    this.drawBars(28, H - 118);
+    this.drawMiniMap(W - 150, 96);
+    this.drawStatus(W / 2, 26);
+    this.drawZone(W / 2, H * 0.2);
+
+    g.restore();
+  },
+
+  txt(g, s, x, y, size, col, align, glow) {
+    g.font = '600 ' + size + 'px "Segoe UI","Malgun Gothic",sans-serif';
+    g.textAlign = align || 'left';
+    g.textBaseline = 'alphabetic';
+    if (glow) { g.shadowColor = glow; g.shadowBlur = 12; }
+    g.fillStyle = col;
+    g.fillText(s, x, y);
+    g.shadowBlur = 0;
+  },
+
+  drawTopLeft() {
+    const g = SCR.ctx, p = Physics.player;
+    const t = utils.fmtTime(Game.clock);
+    this.txt(g, t, 26, 40, 24, '#eaf4ff', 'left', 'rgba(49,217,255,.8)');
+    this.txt(g, (p.travelled / 1000 * 0.05).toFixed(2) + ' km', 26, 64, 13, '#8fa8c4');
+    this.txt(g, (Game.mode === 'free' ? '자유주행' : '레이스') + ' · ' + Road.nearestZoneName(p.z), 26, 84, 13, '#9fd4ff');
+    if (Save.data.cam === 'hood') this.txt(g, '1인칭(보닛)', 26, 104, 12, '#ffc46b');
+  },
+
+  drawStatus(x, y) {
+    const g = SCR.ctx;
+    const sm = Assets.summary();
+    const label = sm.ok === 0 ? '절차적 모드(에셋 없음)' : '실물 에셋 ' + sm.ok + '/' + sm.total;
+    g.globalAlpha = 0.85;
+    this.txt(g, 'FPS ' + this.fpsShow + '  ·  ' + label, x, y, 12,
+      sm.ok === 0 ? '#ffc46b' : '#8fa8c4', 'center');
+    g.globalAlpha = 1;
+  },
+
+  /* 계기판: 원형 게이지 + 기어 */
+  drawGauge(cx, cy, r) {
+    const g = SCR.ctx, p = Physics.player;
+    const pct = utils.clamp(p.speed / Physics.topSpeed(), 0, 1);
+    const a0 = Math.PI * 0.78, a1 = Math.PI * 2.22;
+
+    g.save();
+    g.globalAlpha = 0.92;
+    // 받침
+    g.lineWidth = 9; g.lineCap = 'round';
+    g.strokeStyle = 'rgba(120,190,255,0.14)';
+    g.beginPath(); g.arc(cx, cy, r, a0, a1); g.stroke();
+    // 게이지
+    const grd = g.createLinearGradient(cx - r, cy, cx + r, cy);
+    grd.addColorStop(0, '#31d9ff'); grd.addColorStop(0.7, '#ffd166'); grd.addColorStop(1, '#ff2f8e');
+    g.strokeStyle = grd; g.lineWidth = 7;
+    g.beginPath(); g.arc(cx, cy, r, a0, a0 + (a1 - a0) * pct); g.stroke();
+    // 눈금
+    g.strokeStyle = 'rgba(200,225,255,0.35)'; g.lineWidth = 1.5;
+    for (let i = 0; i <= 10; i++) {
+      const a = a0 + (a1 - a0) * (i / 10);
+      const s1 = r - 13, s2 = r - (i % 5 === 0 ? 22 : 18);
+      g.beginPath();
+      g.moveTo(cx + Math.cos(a) * s1, cy + Math.sin(a) * s1);
+      g.lineTo(cx + Math.cos(a) * s2, cy + Math.sin(a) * s2);
+      g.stroke();
+    }
+    // 바늘
+    const an = a0 + (a1 - a0) * pct;
+    g.strokeStyle = '#ff5f7a'; g.lineWidth = 2.5;
+    g.beginPath();
+    g.moveTo(cx - Math.cos(an) * 12, cy - Math.sin(an) * 12);
+    g.lineTo(cx + Math.cos(an) * (r - 16), cy + Math.sin(an) * (r - 16));
+    g.stroke();
+    // 수치
+    this.txt(g, String(Math.round(p.kmh)), cx, cy + 6, 30, '#ffffff', 'center', 'rgba(49,217,255,.9)');
+    this.txt(g, 'km/h', cx, cy + 24, 11, '#8fa8c4', 'center');
+    this.txt(g, 'D' + p.gear, cx + r - 6, cy - r + 22, 15, p.boost ? '#ff2f8e' : '#9fd4ff', 'center');
+    g.restore();
+  },
+
+  /* 계기판 위: 현재 노면/그립 상태 (점프 중이면 높이 표시) */
+  drawSurface(cx, cy) {
+    const g = SCR.ctx, p = Physics.player;
+    const SURF = {
+      asphalt: ['아스팔트', '#8fa8c4'], wet: ['젖은 노면', '#7fc8ff'],
+      gravel: ['비포장', '#e0c18a'], dirt: ['비포장 길바닥', '#e0c18a'],
+      ice: ['빙판', '#9fe8ff'], oil: ['기름 유출', '#ff8fae'], ramp: ['점프대', '#ffc46b']
+    };
+    let label = null, col = '#8fa8c4';
+    if (p.airborne) {
+      label = '공중 ' + Math.max(0, Math.round(p.y / 50)) + ' m';
+      col = '#49d9ff';
+    } else if (p.surface !== 'asphalt') {
+      const it = SURF[p.surface] || [p.surface, '#ffc46b'];
+      label = it[0];
+      col = it[1];
+    }
+    if (!label) return;
+    const grip = Math.round(utils.clamp(p.grip, 0, 1.6) * 100 / 1.6);
+    g.save();
+    g.globalAlpha = 0.9;
+    this.txt(g, label, cx, cy, 13, col, 'center');
+    // 그립 막대
+    const bw = 96;
+    g.fillStyle = 'rgba(120,190,255,0.12)';
+    g.fillRect(cx - bw / 2, cy + 6, bw, 5);
+    g.fillStyle = col;
+    g.fillRect(cx - bw / 2, cy + 6, bw * utils.clamp(p.grip, 0, 1), 5);
+    g.restore();
+  },
+
+  /* 좌측 하단: 4계통 상태 바 (M1: 표시만) */
+  drawBars(x, y) {
+    const g = SCR.ctx;
+    const s = Physics.stats;
+    const rows = [
+      ['차체', s.body, '#7fe3a0'],
+      ['엔진', s.engine, '#7fc8ff'],
+      ['타이어', s.tire, '#ffd166'],
+      ['연료', s.fuel, '#ff9f6b']
+    ];
+    g.save();
+    g.globalAlpha = 0.9;
+    rows.forEach((r, i) => {
+      const yy = y + i * 21;
+      this.txt(g, r[0], x, yy + 10, 11, '#8fa8c4');
+      g.fillStyle = 'rgba(120,190,255,0.12)';
+      g.fillRect(x + 42, yy + 3, 128, 8);
+      const v = utils.clamp(r[1] / 100, 0, 1);
+      g.fillStyle = r[2];
+      g.fillRect(x + 42, yy + 3, 128 * v, 8);
+      g.strokeStyle = 'rgba(120,190,255,0.22)'; g.lineWidth = 1;
+      g.strokeRect(x + 42.5, yy + 3.5, 127, 7);
+      if (v < 0.25) this.txt(g, '!', x + 178, yy + 11, 12, '#ff5f7a');
+    });
+    g.restore();
+  },
+
+  /* 우상단: 전방 커브 미니맵(곡률 누적 polyline) */
+  drawMiniMap(cx, cy) {
+    const g = SCR.ctx;
+    const p = Physics.player;
+    const look = 90;
+    const base = Road.findSegment(p.z);
+    const n = Road.segments.length;
+    let x = 0, dx = 0, heading = 0;
+    const pts = [];
+    for (let i = 0; i < look; i++) {
+      const seg = Road.segments[(base.index + i) % n];
+      heading += seg.curve * 0.02;
+      x += Math.sin(heading);
+      pts.push({ i: i, x: x, y: -i * 0.9, curve: seg.curve });
+    }
+    const sc = 1.55;
+    g.save();
+    g.globalAlpha = 0.85;
+    g.strokeStyle = 'rgba(120,190,255,0.18)'; g.lineWidth = 1;
+    g.strokeRect(cx - 60, cy - 30, 120, 130);
+    g.strokeStyle = 'rgba(180,215,255,0.55)'; g.lineWidth = 3; g.lineCap = 'round';
+    g.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const px = cx + pts[i].x * sc * 6, py = cy + 95 + pts[i].y * sc * 6 + 95;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.stroke();
+    // 내 위치
+    g.fillStyle = '#ff5f7a';
+    g.beginPath(); g.arc(cx + pts[0].x * sc * 6, cy + 95 + 95, 4, 0, Math.PI * 2); g.fill();
+    this.txt(g, '전방 코스', cx, cy - 36, 11, '#8fa8c4', 'center');
+    g.restore();
+  },
+
+  /* 구역 이름 팝업 */
+  drawZone(cx, cy) {
+    const p = Physics.player;
+    const zn = Road.nearestZoneName(p.z);
+    if (zn !== this.zoneShown) {
+      this.zoneShown = zn; this.zoneT = 2.2;
+    }
+    if (this.zoneT > 0) {
+      this.zoneT -= 1 / 60;
+      const a = utils.clamp(this.zoneT / 0.6, 0, 1);
+      SCR.ctx.globalAlpha = a;
+      this.txt(SCR.ctx, zn, cx, cy, 22, '#cfe6ff', 'center', 'rgba(49,217,255,.7)');
+      SCR.ctx.globalAlpha = 1;
+    }
+  }
+};
+
+/* ===== 10_ui.js ===== */
+/* ==========================================================================
+   UI - 부팅/메뉴/도움말/크레딧/일시정지 패널 관리
+   ========================================================================== */
+const CREDITS_TEXT =
+`Music
+  "Night Runner" by KLY (CC-BY 3.0, OpenGameArt.org)
+  "Race" by Alex_089 (CC-BY 4.0, OpenGameArt.org)
+  "Death of Hope" by ColdOneK (CC-BY 4.0, OpenGameArt.org)
+SFX
+  boost by qubodup (CC-BY 3.0, OpenGameArt.org)
+  engine loops by domasx2 (CC0), engine start by looneybits (CC0)
+  collision / debris by rubberduck (CC0)
+Art
+  Kenney "Racing pack" (CC0) - 장애물·코스 오브젝트
+  Unlucky Studio "Free Top Down Car Sprites" (CC0) - 차량
+  FisherG "Parallax City - Night" (CC0) - 파라락 배경
+  Alucard "Cars 2D Top Down" (CC-BY 3.0), Carlos Alface "2D Old Cars Pack" (OGA-BY 3.0)
+  overcrafted "top down pixel police car" (OGA-BY 3.0)
+  fridaruiz "pixel night city" (CC-BY 4.0)
+All above collected from OpenGameArt.org (2026-11). 일부는 리사이즈/트리밍 등 개작되어 사용되었습니다.
+자체 제작: 2.5D 도로·조명·파티클·HUD 렌더링, 절차적 가로등/빌딩, WebAudio 폴백 사운드.`;
+
+const UI = {
+  el: {},
+  init() {
+    const ids = ['bootLayer', 'menuLayer', 'helpLayer', 'credLayer', 'pauseLayer',
+      'bootBar', 'bootMsg', 'bootAssets', 'credText',
+      'btnFree', 'btnCred', 'btnHelp', 'btnRestart', 'btnHelpClose', 'btnMusic',
+      'btnCredClose', 'btnResume', 'btnMenu', 'btnCred2'];
+    for (const id of ids) this.el[id] = document.getElementById(id);
+    this.el.credText.textContent = CREDITS_TEXT;
+
+    const bind = (id, fn) => {
+      const b = this.el[id];
+      if (b) b.addEventListener('click', (e) => { e.preventDefault(); Sound.unlock(); fn(); b.blur(); });
+    };
+    bind('btnFree', () => Game.startFree());
+    bind('btnCred', () => this.show('credLayer'));
+    bind('btnCred2', () => this.show('credLayer'));
+    bind('btnCredClose', () => this.show(Game.mode === 'pause' ? 'pauseLayer' : 'menuLayer'));
+    bind('btnHelp', () => this.show('helpLayer'));
+    bind('btnHelpClose', () => this.show('menuLayer'));
+    bind('btnRestart', () => { Game.buildCourse(Date.now() & 0xffffff); Toast.show('코스를 다시 만들었습니다'); });
+    bind('btnMusic', () => { const on = Sound.toggleMusic(); Toast.show('음악: ' + (on ? '켬' : '끔')); });
+    bind('btnResume', () => Game.resume());
+    bind('btnMenu', () => Game.toMenu());
+
+    // 첫 사용자 상호작용에서 사운드 해제
+    const unl = () => Sound.unlock();
+    window.addEventListener('pointerdown', unl, { once: false });
+    window.addEventListener('keydown', unl, { once: false });
+    return this;
+  },
+
+  hideAll() {
+    for (const k in this.el) {
+      const e = this.el[k];
+      if (e && /Layer$/.test(k)) e.classList.add('hidden');
+    }
+  },
+  show(name) {
+    this.hideAll();
+    const e = this.el[name];
+    if (e) e.classList.remove('hidden');
+  },
+  none() { this.hideAll(); },
+
+  bootProgress(p, msg) {
+    if (this.el.bootBar) this.el.bootBar.style.width = Math.round(p * 100) + '%';
+    if (msg && this.el.bootMsg) this.el.bootMsg.textContent = msg;
+  },
+  bootDone(sm) {
+    if (!this.el.bootAssets) return;
+    if (sm.total === 0) {
+      this.el.bootAssets.textContent = '외부 에셋 사용 안 함 - 모든 그래픽/사운드는 절차적으로 생성됩니다.';
+      return;
+    }
+    const mode = sm.ok === 0 ? 'assets/game 을 찾지 못해 절차적 화면/합성 사운드로 실행합니다.'
+      : '실물 에셋 ' + sm.ok + '개 로드 (실패 ' + sm.bad + '개 → 항목별 절차적 폴백)';
+    this.el.bootAssets.textContent = mode;
+  }
+};
+
+/* ===== 11_main.js ===== */
+/* ==========================================================================
+   Game - 상태 관리 + 고정 타임스텝 루프
+   ========================================================================== */
+const Game = {
+  mode: 'boot',
+  clock: 0,
+  carColor: '#d8213f',
+  step: 1 / 60,
+  acc: 0,
+  last: 0,
+  frameCount: 0,
+  running: false,
+  seed: 20261110,
+
+  boot() {
+    SCR.init();
+    Input.init();
+    Save.load();
+    Assets.init();
+
+    UI.init();
+    UI.bootProgress(0.05, '도로 생성 중…');
+
+    // 코스는 에셋과 병렬로 먼저 만들어 둔다(폴백 상태에서도 즉시 달릴 수 있게)
+    Road.build(this.seed);
+    Physics.setup();
+    Sprites.build();
+    Render.init();
+    Sound.init();
+
+    UI.bootProgress(0.2, '에셋 로드 중…');
+    Assets.load(
+      (done, total) => UI.bootProgress(0.2 + 0.8 * (done / Math.max(1, total)), '에셋 로드 중… ' + done + '/' + total),
+      (sm) => {
+        UI.bootProgress(1, '준비 완료');
+        UI.bootDone(sm);
+        this.toMenu();
+        if (sm.ok === 0) Toast.show('실물 에셋 없음: 절차적 그래픽/합성 사운드로 실행합니다', 3200);
+      }
+    );
+
+    this.running = true;
+    this.last = performance.now();
+    requestAnimationFrame((t) => this.loop(t));
+    return this;
+  },
+
+  /* ---------------------------------------------------------- 상태 -- */
+  toMenu() {
+    this.mode = 'menu';
+    this.clock = 0;
+    UI.show('menuLayer');
+    Sound.music.play('mus_menu');
+  },
+  startFree() {
+    this.mode = 'play';
+    this.clock = 0;
+    // 자유주행 시작 시에는 차량을 정비한 상태로 시작한다(M4 상점 시스템에서 유지/정비로 대체 예정)
+    Physics.reset(false);
+    UI.none();
+    Sound.unlock();
+    Sound.startEngine();
+    Sound.music.play('mus_cruise');
+    Toast.show('출발!  Esc = 일시정지 · C = 시점 전환', 2400);
+  },
+  pause() {
+    if (this.mode !== 'play') return;
+    this.mode = 'pause';
+    UI.show('pauseLayer');
+    Sound.engine(0.12, 0, false);
+    Sound.skid(0);
+  },
+  resume() {
+    if (this.mode !== 'pause') return;
+    this.mode = 'play';
+    UI.none();
+    this.last = performance.now();
+    this.acc = 0;
+  },
+  wreck() {
+    this.mode = 'wreck';
+    Physics.player.speed = 0;
+    Toast.show('차량이 폐차되었습니다 - 메뉴로 돌아갑니다', 2600);
+    setTimeout(() => this.toMenu(), 1800);
+  },
+  buildCourse(seed) {
+    this.seed = seed >>> 0;
+    Road.build(this.seed);
+    Physics.reset(true);
+  },
+
+  /* ------------------------------------------------------------ 루프 -- */
+  errCount: 0,
+  loop(ts) {
+    if (!this.running) return;
+    requestAnimationFrame((t) => this.loop(t));
+    try {
+      this.step_frame(ts);
+    } catch (e) {
+      this.onError(e);
+    }
+  },
+
+  onError(e) {
+    this.errCount++;
+    if (this.errCount === 1) {
+      console.error(e);
+      Toast.show('오류가 발생했습니다: ' + (e && e.message ? e.message : e), 3200);
+    }
+    if (this.errCount > 40) {
+      this.running = false;
+      Toast.show('계속 실행이 어려워 잠시 멈춥니다. 새로고침 후 다시 시도해 주세요.', 5000);
+    }
+  },
+
+  step_frame(ts) {
+    const dt = Math.min(0.1, (ts - this.last) / 1000);
+    this.last = ts;
+
+    this.handleKeys();
+
+    if (this.mode === 'play' || this.mode === 'wreck') {
+      this.acc += dt;
+      let guard = 0;
+      while (this.acc >= this.step && guard < 6) {
+        if (this.mode === 'play') {
+          const inp = {
+            up: Input.down('up'), down: Input.down('down'),
+            left: Input.down('left'), right: Input.down('right'),
+            hand: Input.down('hand'), boost: Input.down('boost')
+          };
+          Physics.update(this.step, inp);
+          this.clock += this.step * 1000;
+        }
+        this.acc -= this.step;
+        guard++;
+      }
+      if (guard >= 6) this.acc = 0;
+      Render.frame();
+      HUD.draw(dt);
+    } else {
+      // 메뉴/일시정지 배경: 조용히 도로를 보여준다(자동 카메라 드리프트)
+      this.menuScene(dt);
+    }
+
+    Input.pollPad();
+    Input.endFrame();
+    this.frameCount++;
+  },
+
+  handleKeys() {
+    if (Input.hit('esc')) {
+      Sound.unlock();
+      if (this.mode === 'play') this.pause();
+      else if (this.mode === 'pause') this.resume();
+      else if (this.mode === 'menu') { /* 메뉴에서는 무시 */ }
+      else UI.none();
+    }
+    if (Input.hit('enter') && this.mode === 'menu') { Sound.unlock(); this.startFree(); }
+    if (Input.hit('cam')) {
+      Save.data.cam = Save.data.cam === 'hood' ? 'chase' : 'hood';
+      Save.put();
+      Toast.show('시점: ' + (Save.data.cam === 'hood' ? '보닛(1인칭)' : '후방 3/4'));
+    }
+    if (Input.hit('music')) { const on = Sound.toggleMusic(); Toast.show('음악: ' + (on ? '켬' : '끔')); }
+    if (Input.hit('reset')) {
+      if (this.mode === 'play') { Physics.reset(true); Toast.show('위치 리셋 (코스는 유지)'); }
+      else { this.buildCourse(Date.now() & 0xffffff); Toast.show('코스 재생성'); }
+    }
+  },
+
+  /* 메뉴 뒤 배경: 천천히 움직이는 도시 시야 */
+  menuT: 0,
+  menuScene(dt) {
+    this.menuT += dt;
+    const p = Physics.player;
+    p.speed = utils.lerp(p.speed, 1100, dt * 0.6);
+    p.z = utils.inc(p.z, p.speed * dt, Road.trackLength);
+    p.kmh = p.speed * CONFIG.physics.kmhFactor;
+    p.x = utils.lerp(p.x, -0.25 + Math.sin(this.menuT * 0.35) * 0.35, dt * 0.8);
+    p.steer = 0; p.prevSpeed = p.speed;
+    p.gear = Math.min(6, 1 + Math.floor((p.speed / Physics.topSpeed()) * 6));
+    p.rpm = 0.35 + 0.2 * Math.sin(this.menuT);
+    Sound.engine(p.rpm, 0.4, false);
+    Render.frame();
+  }
+};
+
+/* 기동 */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => Game.boot());
+} else {
+  Game.boot();
+}
+
+</script>
+
+
+</body>
+</html>

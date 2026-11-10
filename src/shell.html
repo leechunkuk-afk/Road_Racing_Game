@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>NIGHT DRIVE: Neon City Racer</title>
+<!--
+  NIGHT DRIVE: Neon City Racer
+  - 이 파일은 tools/build_single_html.js 로 생성됩니다. (개발 소스: src/*.js)
+  - 기획서: docs/01_기본작업_기획서.md (v0.2)
+  - 에셋/라이선스: docs/02_소재_컬렉션_라이선스.md, CREDITS.md
+  - 라이브러리 의존성 0. assets/game/ 가 없어도 절차적 드로잉/합성으로 동작합니다.
+-->
+<style>
+  :root{
+    --neon:#31d9ff; --neon2:#ff2f8e; --amber:#ffc46b; --ink:#05070d;
+    --panel:rgba(6,9,16,.88); --line:rgba(120,190,255,.28);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;background:#000;color:#e8f2ff;
+    font-family:'Segoe UI','Malgun Gothic','맑은 고딕',system-ui,sans-serif;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 35%,#101a2c 0%,#05070d 60%,#000 100%)}
+  #stage{position:relative;line-height:0}
+  canvas#game{display:block;background:#05070d;image-rendering:auto;
+    box-shadow:0 0 0 1px rgba(120,190,255,.16),0 0 90px rgba(20,120,200,.22)}
+  .layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    pointer-events:none}
+  .panel{pointer-events:auto;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:26px 30px;min-width:min(560px,92vw);max-height:92%;
+    overflow:auto;backdrop-filter:blur(6px);
+    box-shadow:0 18px 60px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.03)}
+  .hidden{display:none !important}
+  h1{font-size:30px;letter-spacing:2px;color:#fff;text-shadow:0 0 16px var(--neon),0 0 34px rgba(49,217,255,.45)}
+  h1 b{color:var(--neon2);text-shadow:0 0 16px var(--neon2)}
+  h2{font-size:17px;color:var(--neon);margin:16px 0 8px;letter-spacing:1px}
+  p,li,td,th{font-size:13.5px;line-height:1.65;color:#c6d6ea}
+  .sub{color:#8fa8c4;font-size:12.5px;margin-top:6px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  button{pointer-events:auto;cursor:pointer;font:inherit;font-size:14px;color:#eaf6ff;
+    background:linear-gradient(180deg,rgba(49,217,255,.16),rgba(49,217,255,.05));
+    border:1px solid rgba(90,200,255,.42);border-radius:9px;padding:11px 16px;
+    text-shadow:0 0 8px rgba(49,217,255,.5);transition:.12s}
+  button:hover{background:linear-gradient(180deg,rgba(49,217,255,.30),rgba(49,217,255,.10));
+    border-color:#63d8ff;transform:translateY(-1px)}
+  button.alt{color:#ffd7e8;border-color:rgba(255,60,140,.45);text-shadow:0 0 8px rgba(255,60,140,.5);
+    background:linear-gradient(180deg,rgba(255,47,142,.14),rgba(255,47,142,.04))}
+  kbd{display:inline-block;min-width:22px;padding:1px 6px;border-radius:4px;border:1px solid #4a6a8c;
+    background:#0d1622;color:#bfe2ff;font-size:12px;text-align:center}
+  table{border-collapse:collapse;width:100%;margin-top:8px}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid rgba(120,190,255,.12)}
+  th{color:#9fd4ff;font-weight:600}
+  .bar{height:8px;border-radius:5px;background:#101a28;border:1px solid var(--line);overflow:hidden;margin-top:10px}
+  .bar>i{display:block;height:100%;width:0%;
+    background:linear-gradient(90deg,var(--neon),var(--neon2));transition:width .18s}
+  .keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:8px}
+  .creditbox{font-size:12px;line-height:1.7;color:#a9c0d8;white-space:pre-wrap}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;
+    border:1px solid rgba(120,190,255,.35);color:#9fd4ff;margin:2px 4px 2px 0}
+  .warn{color:#ffc46b}
+  #toast{position:absolute;left:50%;top:12%;transform:translateX(-50%);
+    font-size:15px;color:#fff;text-shadow:0 0 12px var(--neon),0 2px 4px #000;
+    padding:8px 16px;background:rgba(6,9,16,.55);border:1px solid var(--line);
+    border-radius:10px;opacity:0;transition:opacity .25s}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="game" width="1280" height="720"></canvas>
+
+    <!-- 부팅/로딩 -->
+    <div class="layer" id="bootLayer">
+      <div class="panel">
+        <h1>NIGHT <b>DRIVE</b></h1>
+        <div class="sub">Neon City Racer &nbsp;·&nbsp; M1 (도로 + 주행)</div>
+        <div class="bar"><i id="bootBar"></i></div>
+        <p id="bootMsg" style="margin-top:10px">초기화 중…</p>
+        <p class="sub" id="bootAssets"></p>
+      </div>
+    </div>
+
+    <!-- 메인 메뉴 -->
+    <div class="layer hidden" id="menuLayer">
+      <div class="panel">
+        <h1>NIGHT <b>DRIVE</b></h1>
+        <div class="sub">가로등만 이어지는 밤의 도시. 지금 바로 달릴 수 있습니다.</div>
+        <div class="row">
+          <button id="btnFree">자유주행 시작</button>
+          <button id="btnCred" class="alt">크레딧</button>
+          <button id="btnHelp">조작/설정</button>
+        </div>
+        <h2>준비된 것 / 아직인 것</h2>
+        <p><span class="tag">2.5D 곡선 도로</span><span class="tag">야간 조명</span><span class="tag">원근 배경</span>
+           <span class="tag">엔진음</span><span class="tag">카메라 전환</span>
+           <span class="tag warn">AI·장애물·상점은 M2~M4</span></p>
+        <div class="row">
+          <button id="btnRestart">코스 재생성(R)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 조작/설정 -->
+    <div class="layer hidden" id="helpLayer">
+      <div class="panel">
+        <h2>조작</h2>
+        <div class="keys">
+          <div><kbd>↑</kbd><kbd>W</kbd></div><div>가속</div>
+          <div><kbd>↓</kbd><kbd>S</kbd></div><div>브레이크 / 감속</div>
+          <div><kbd>←</kbd><kbd>→</kbd> <kbd>A</kbd><kbd>D</kbd></div><div>조향</div>
+          <div><kbd>Space</kbd></div><div>핸드브레이크(드프트)</div>
+          <div><kbd>Shift</kbd></div><div>니트로(연료 소모)</div>
+          <div><kbd>C</kbd></div><div>시점 전환 (후방 ↔ 보닛)</div>
+          <div><kbd>R</kbd></div><div>코스 재생성 / 위치 리셋</div>
+          <div><kbd>M</kbd></div><div>음악 켜기/끄기</div>
+          <div><kbd>Esc</kbd></div><div>일시정지 / 메뉴</div>
+        </div>
+        <h2>표시</h2>
+        <p>우측 상단: FPS · 에셋 상태(실물/절차적). 하단 좌: 속도·기어 · 우: 커브 미니맵.</p>
+        <div class="row">
+          <button id="btnHelpClose">닫기</button>
+          <button id="btnMusic">음악: 켜기/끄기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 크레딧 (라이선스 표기) -->
+    <div class="layer hidden" id="credLayer">
+      <div class="panel">
+        <h2>크레딧 — 사용한 저작물</h2>
+        <div class="creditbox" id="credText"></div>
+        <div class="row"><button id="btnCredClose">닫기</button></div>
+      </div>
+    </div>
+
+    <!-- 일시정지 -->
+    <div class="layer hidden" id="pauseLayer">
+      <div class="panel">
+        <h1 style="font-size:22px">일시정지</h1>
+        <p class="sub"><kbd>Esc</kbd> 계속 &nbsp;·&nbsp; <kbd>R</kbd> 코스 재생성</p>
+        <div class="row">
+          <button id="btnResume">계속하기</button>
+          <button id="btnMenu">메뉴로</button>
+          <button id="btnCred2" class="alt">크레딧</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ===== 생성된 단일 파일. 아래는 src/*.js 를 순서대로 병합한 것이다. ===== */
+</script>
+
+<!--@@SCRIPTS@@-->
+
+</body>
+</html>

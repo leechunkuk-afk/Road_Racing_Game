@@ -1,0 +1,42 @@
+[
+  {"url":"https://opengameart.org/sites/default/files/racing-pack.zip","dir":"cars","name":"kenney_racing_pack.zip","page":"https://opengameart.org/content/racing-pack","license":"CC0","author":"Kenney"},
+  {"url":"https://opengameart.org/sites/default/files/Topdown_vehicle_sprites_pack_Unluckystudio.zip","dir":"cars","name":"unluckystudio_topdown_vehicles.zip","page":"https://opengameart.org/content/free-top-down-car-sprites-by-unlucky-studio","license":"CC0","author":"Unlucky Studio"},
+  {"url":"https://opengameart.org/sites/default/files/racecars2d_0.zip","dir":"cars","name":"2d_race_cars.zip","page":"https://opengameart.org/content/2d-race-cars","license":"CC0","author":"looneybits"},
+  {"url":"https://opengameart.org/sites/default/files/car1_spr.png","dir":"cars","name":"car_pixelart_topdown.png","page":"https://opengameart.org/content/car-pixelart","license":"CC0","author":"satik64"},
+  {"url":"https://opengameart.org/sites/default/files/Cars-04.zip","dir":"cars","name":"old_cars_pack_48.zip","page":"https://opengameart.org/content/2d-old-cars-pack","license":"OGA-BY 3.0","author":"carlos alface"},
+  {"url":"https://opengameart.org/sites/default/files/police%20car.png","dir":"cars","name":"police_car_topdown.png","page":"https://opengameart.org/content/top-down-pixel-police-car","license":"OGA-BY 3.0","author":"overcrafted"},
+  {"url":"https://opengameart.org/sites/default/files/cars-spritesheet.png","dir":"cars","name":"cars_2d_topdown_sheet.png","page":"https://opengameart.org/content/cars-2d-top-down","license":"CC-BY 3.0","author":"gameassets"},
+
+  {"url":"https://opengameart.org/sites/default/files/scitysky.png","dir":"backgrounds","name":"parallax_night_sky.png","page":"https://opengameart.org/content/parallax-city-night-4-colors","license":"CC0","author":"fisherg"},
+  {"url":"https://opengameart.org/sites/default/files/scityfar.png","dir":"backgrounds","name":"parallax_night_far.png","page":"https://opengameart.org/content/parallax-city-night-4-colors","license":"CC0","author":"fisherg"},
+  {"url":"https://opengameart.org/sites/default/files/scitymid.png","dir":"backgrounds","name":"parallax_night_mid.png","page":"https://opengameart.org/content/parallax-city-night-4-colors","license":"CC0","author":"fisherg"},
+  {"url":"https://opengameart.org/sites/default/files/scityclose.png","dir":"backgrounds","name":"parallax_night_close.png","page":"https://opengameart.org/content/parallax-city-night-4-colors","license":"CC0","author":"fisherg"},
+  {"url":"https://opengameart.org/sites/default/files/scitycarsfar.png","dir":"backgrounds","name":"parallax_night_carsfar.png","page":"https://opengameart.org/content/parallax-city-night-4-colors","license":"CC0","author":"fisherg"},
+  {"url":"https://opengameart.org/sites/default/files/scitycarsclose.png","dir":"backgrounds","name":"parallax_night_carsclose.png","page":"https://opengameart.org/content/parallax-city-night-4-colors","license":"CC0","author":"fisherg"},
+  {"url":"https://opengameart.org/sites/default/files/citynight.png","dir":"backgrounds","name":"city_night_full.png","page":"https://opengameart.org/content/city-night-background","license":"CC0","author":"andersen"},
+  {"url":"https://opengameart.org/sites/default/files/night_background1.0.png","dir":"backgrounds","name":"night_fullmoon_bg.png","page":"https://opengameart.org/content/night-background","license":"CC0","author":"game2rise"},
+  {"url":"https://opengameart.org/sites/default/files/simple_seamless_city_pixel_art_background.zip","dir":"backgrounds","name":"seamless_city_pixel_bg.zip","page":"https://opengameart.org/content/simple-seamless-city-pixel-art-background","license":"OGA-BY 3.0","author":"craftpix-net"},
+  {"url":"https://opengameart.org/sites/default/files/fondo.png","dir":"backgrounds","name":"pixel_night_city.png","page":"https://opengameart.org/content/pixel-night-city","license":"CC0 (multi-license)","author":"fridaruiz"},
+
+  {"url":"https://opengameart.org/sites/default/files/Race.zip","dir":"track","name":"basic_art_racing.zip","page":"https://opengameart.org/content/basic-art-racing","license":"CC0","author":"firefly-in-the-dusk"},
+  {"url":"https://opengameart.org/sites/default/files/Race-Track-Tile-Set-PNG.zip","dir":"track","name":"race_track_tile_set.zip","page":"https://opengameart.org/content/race-track-tile-set","license":"OGA-BY 3.0","author":"craftpix-net"},
+  {"url":"https://opengameart.org/sites/default/files/track2.png","dir":"track","name":"track_tiles_2.png","page":"https://opengameart.org/content/track-tiles","license":"CC-BY 3.0 / OGA-BY 3.0","author":"trbry"},
+  {"url":"https://opengameart.org/sites/default/files/192-racetrack-v5.png","dir":"track","name":"racetrack_tiles_192.png","page":"https://opengameart.org/content/race-track-tiles-0","license":"CC-BY 3.0 / OGA-BY 3.0","author":"trbry"},
+  {"url":"https://opengameart.org/sites/default/files/background-1_0.png","dir":"track","name":"highway_topdown_seamless.png","page":"https://opengameart.org/content/2d-top-down-highway-background","license":"CC-BY 3.0","author":"alucard / gameassets"},
+
+  {"url":"https://opengameart.org/sites/default/files/loop_1_0.wav","dir":"sfx","name":"engine_loop_1.wav","page":"https://opengameart.org/content/racing-car-engine-sound-loops","license":"CC0","author":"domasx2"},
+  {"url":"https://opengameart.org/sites/default/files/loop_2_0.wav","dir":"sfx","name":"engine_loop_2.wav","page":"https://opengameart.org/content/racing-car-engine-sound-loops","license":"CC0","author":"domasx2"},
+  {"url":"https://opengameart.org/sites/default/files/loop_3_0.wav","dir":"sfx","name":"engine_loop_3.wav","page":"https://opengameart.org/content/racing-car-engine-sound-loops","license":"CC0","author":"domasx2"},
+  {"url":"https://opengameart.org/sites/default/files/loop_4_0.wav","dir":"sfx","name":"engine_loop_4.wav","page":"https://opengameart.org/content/racing-car-engine-sound-loops","license":"CC0","author":"domasx2"},
+  {"url":"https://opengameart.org/sites/default/files/loop_5_0.wav","dir":"sfx","name":"engine_loop_5.wav","page":"https://opengameart.org/content/racing-car-engine-sound-loops","license":"CC0","author":"domasx2"},
+  {"url":"https://opengameart.org/sites/default/files/generic_car_startengine.wav","dir":"sfx","name":"engine_start.wav","page":"https://opengameart.org/content/car-engine-start-01","license":"CC0","author":"looneybits"},
+  {"url":"https://opengameart.org/sites/default/files/boost-ogg-only.zip","dir":"sfx","name":"nitro_boost.zip","page":"https://opengameart.org/content/racing-speed-boost-sound","license":"CC-BY 3.0","author":"qubodup"},
+  {"url":"https://opengameart.org/sites/default/files/sfx_breaking_and_falling.zip","dir":"sfx","name":"crash_breaking_sfx.zip","page":"https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx","license":"CC0","author":"rubberduck"},
+  {"url":"https://opengameart.org/sites/default/files/100-CC0-SFX_0.zip","dir":"sfx","name":"ui_misc_sfx.zip","page":"https://opengameart.org/content/100-cc0-sfx","license":"CC0","author":"rubberduck"},
+  {"url":"https://opengameart.org/sites/default/files/pixil-gif-drawing_4.gif","dir":"props","name":"streetlight_anim.gif","page":"https://opengameart.org/content/streetlight","license":"CC0","author":"frenchyboy"},
+
+  {"url":"https://opengameart.org/sites/default/files/5%20Action%20Chiptunes%20By%20Juhani%20Junkala.zip","dir":"music","name":"chiptunes_action_5.zip","page":"https://opengameart.org/content/5-chiptunes-action","license":"CC0","author":"Juhani Junkala"},
+  {"url":"https://opengameart.org/sites/default/files/Kim%20Lightyear%20-%20Night%20Runner_0.mp3","dir":"music","name":"night_runner.mp3","page":"https://opengameart.org/content/night-runner","license":"CC-BY 3.0","author":"Kim Lightyear"},
+  {"url":"https://opengameart.org/sites/default/files/race_2.mp3","dir":"music","name":"race_loop.mp3","page":"https://opengameart.org/content/race-0","license":"CC-BY 4.0","author":"alex089"},
+  {"url":"https://opengameart.org/sites/default/files/deathOfHope.mp3","dir":"music","name":"death_of_hope.mp3","page":"https://opengameart.org/content/death-of-hope-chiptuneelectronic","license":"CC-BY 4.0","author":"coldonek"}
+]
