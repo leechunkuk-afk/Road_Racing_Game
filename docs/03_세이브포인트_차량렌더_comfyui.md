@@ -44,6 +44,11 @@ Z-Image 계열은 SageAttention/CK 같은 고속 어텐션에서 **검은 화면
 Z-Image 작업용 실행 배치는 어텐션 플래그 없이(기본 PyTorch SDPA) 돌린다.
 SageAttention 은 SDXL/FLUX/WAN 등 다른 모델용으로 사용.
 
+> **2026-11-11 실측으로 갱신:** 이 환경(sm86 + sageattention 2.2.0 + ComfyUI 0.44 + int8 convrot)에서는
+> 검은 화면이 **재현되지 않았다.** Sage 결과물과 SDPA 결과물의 평균 픽셀 차이가 0.5/255,
+> 커널 속도는 2.48배, 전체 생성 시간은 8% 단축. 실측 수치: `docs/06_ComfyUI_ZImage_실측_2026-11-11.md` 4절.
+> 단 `sageattn_qk_int8_pv_fp8_cuda` 커널은 sm86에서 CUDA 컨텍스트를 죽이므로 사용 금지.
+
 ---
 
 ## 3. Blender 5.2 API 프로브 결과 (`tools/car_model/probe.py`)
@@ -100,6 +105,10 @@ SageAttention 은 SDXL/FLUX/WAN 등 다른 모델용으로 사용.
 
 ## 5. ComfyUI 남은 절차
 
+> **2026-11-11 완료.** GGUF 대신 공식 split_files(int8 convrot + Qwen3-4B fp8 + ae VAE)로 설치했고
+> (커스텀 노드 불필요), 아래 1~5절 절차가 전부 실측 검증되었다. 도구·수치·함정은
+> `docs/06_ComfyUI_ZImage_실측_2026-11-11.md`와 `tools/comfy/`(README 포함).
+
 1. `sage_bench.py` 실행 → sm_86 커널 확인, SDPA 대비 배속 기록
 2. 실행 배치 2종 생성 (`ComfyUI_windows_portable\`):
    - `run_fast_sage.bat`: `--windows-standalone-build --use-sage-attention --reserve-vram 1.5`
@@ -120,5 +129,5 @@ SageAttention 은 SDXL/FLUX/WAN 등 다른 모델용으로 사용.
 - 브라우저 재검증: 오류 0, FPS. code mode 브라우저 도구는 `evaluate`→`script`, `find`→`text`
 - 이 모델은 이미지를 읽을 수 없음 → 픽셀 프로브 + `browser.preview` 로 사용자에게 확인
 - code mode 런타임에 `setTimeout` 없음 → 대기 셸은 `Start-Sleep`
-- git 저장소 아님 (변경은 워킹트리에만 존재)
+- git 저장소 아님 (변경은 워킹트리에만 존재)  ※ 갱신: 이제 git 저장소이며 remote는 `leechunkuk-afk/Road_Racing_Game`(main). 한글 커밋 메시지는 `git commit -F 파일`
 - 백그라운드 셸: `node tools/serve.js 8123` 실행 중이었을 수 있음(세션 재개 시 확인)

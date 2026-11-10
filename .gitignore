@@ -17,3 +17,6 @@ ehthumbs.db
 # Python 캐시
 __pycache__/
 *.pyc
+
+# ComfyUI 실행 로그 (tools/comfy/run_comfy.ps1 -Headless 가 만듦)
+tools/comfy/comfy_run.log
